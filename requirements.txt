@@ -1,0 +1,5 @@
+requests
+deep_translator>=1.11
+langdetect>=1.0.9
+pyobjc-framework-Cocoa; sys_platform == "darwin"
+pyobjc-framework-ServiceManagement; sys_platform == "darwin"
