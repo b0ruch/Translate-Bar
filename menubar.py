@@ -49,7 +49,7 @@ from strings import lang_name, t
 POPOVER_W, POPOVER_H = 360, 468
 SETTINGS_W, SETTINGS_H = 320, 236
 DEBOUNCE_INTERVAL = 0.6
-APP_VERSION = "1.0"
+APP_VERSION = "1.1.0"
 APP_NAME = "Translate Bar"
 LAUNCH_LABEL = "com.translatebar.menubar"
 LAUNCH_AGENT_PATH = (
