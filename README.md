@@ -8,6 +8,7 @@ A minimalist menu bar translator for macOS. Click the icon, type, get the transl
 
 ## Features
 
+- [PopClip integration](#popclip-integration) — translate selected text from any app
 - Lives in the menu bar (no Dock icon)
 - 12 target languages, source language detection or manual selection with one-click swap
 - One-click translation history with reuse
@@ -55,7 +56,7 @@ To make a DMG (requires [create-dmg](https://github.com/create-dmg/create-dmg)):
 ```bash
 create-dmg --volname "Translate Bar" --window-size 520 340 --icon-size 96 \
   --icon "Translate Bar.app" 140 170 --app-drop-link 380 170 \
-  "TranslateBar-1.0-arm64.dmg" "dist/Translate Bar.app"
+  "TranslateBar-1.1.0-arm64.dmg" "dist/Translate Bar.app"
 ```
 
 ## Privacy
