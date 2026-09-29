@@ -13,6 +13,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 try:
@@ -690,6 +691,27 @@ class AppDelegate(NSObject):
         self.popover.showRelativeToRect_ofView_preferredEdge_(
             button.bounds(), button, AppKit.NSMinYEdge
         )
+
+    def application_openURLs_(self, app, urls):
+        for url in urls:
+            self._open_translate_url(str(url))
+
+    def _open_translate_url(self, url):
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except Exception:
+            return
+        if parsed.scheme.lower() != "translatebar":
+            return
+        query = urllib.parse.parse_qs(parsed.query)
+        text = (query.get("text", [""])[0] or "").strip()
+        self.showPopover_(None)
+        if not text:
+            return
+        self.input_view.setString_(text)
+        self.placeholder.setHidden_(True)
+        self._update_clear_button()
+        self.requestTranslation()
 
     def popoverDidShow_(self, notification):
         window = self.vc.view().window()

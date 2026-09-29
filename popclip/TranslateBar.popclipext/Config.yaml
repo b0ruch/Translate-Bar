@@ -1,0 +1,4 @@
+name: Translate Bar
+icon: scale=110 symbol:translate
+url: translatebar://translate?text={popclip text}
+clean query: true

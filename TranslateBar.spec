@@ -58,5 +58,11 @@ app = BUNDLE(
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
         "LSMinimumSystemVersion": "13.0",
+        "CFBundleURLTypes": [
+            {
+                "CFBundleURLName": "com.translatebar.menubar.translate",
+                "CFBundleURLSchemes": ["translatebar"],
+            },
+        ],
     },
 )

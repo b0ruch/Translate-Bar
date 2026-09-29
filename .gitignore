@@ -9,5 +9,6 @@ settings.json
 dist/
 build/
 *.dmg
+*.popclipextz
 *.spec
 !TranslateBar.spec
