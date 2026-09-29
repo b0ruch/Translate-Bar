@@ -32,8 +32,12 @@ A minimalist menu bar translator for macOS. Click the icon, type, get the transl
 Select text in any app → **Translate Bar** action in PopClip → the text opens in Translate Bar and gets translated automatically.
 
 1. Download `TranslateBar.popclipextz` from the [Releases](../../releases) page (available since v1.1.0).
-2. Double-click it to install into PopClip (no warnings — it contains no scripts, just a link into the app).
-3. Requires Translate Bar 1.1.0+ installed in `/Applications`.
+2. Double-click it to install into PopClip.
+3. Requires Translate Bar 1.1.0+.
+
+## Privacy
+
+No accounts, no tracking, no API keys. Translation requests go to public translation services; history and settings live only in `~/Library/Application Support/Translate Bar/` on your Mac.
 
 ## Run from source
 
@@ -58,10 +62,6 @@ create-dmg --volname "Translate Bar" --window-size 520 340 --icon-size 96 \
   --icon "Translate Bar.app" 140 170 --app-drop-link 380 170 \
   "TranslateBar-1.1.0-arm64.dmg" "dist/Translate Bar.app"
 ```
-
-## Privacy
-
-No accounts, no tracking, no API keys. Translation requests go to public translation services; history and settings live only in `~/Library/Application Support/Translate Bar/` on your Mac.
 
 ## License
 
