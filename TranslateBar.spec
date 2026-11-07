@@ -2,7 +2,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Сборка Translate Bar: ./.venv/bin/python -m pip install -r requirements-build.txt && ./.venv/bin/pyinstaller TranslateBar.spec"""
 
+import os
 from PyInstaller.utils.hooks import collect_data_files
+
+# Архитектура: TARGET_ARCH=x86_64 (Intel) | arm64 | universal2. По умолчанию — x86_64.
+TARGET_ARCH = os.environ.get("TARGET_ARCH", "x86_64")
 
 datas = collect_data_files("langdetect")
 
@@ -33,7 +37,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    target_arch="arm64",
+    target_arch=TARGET_ARCH,
     codesign_identity=None,
     entitlements_file=None,
 )
