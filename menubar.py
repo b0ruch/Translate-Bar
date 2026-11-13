@@ -44,11 +44,14 @@ from translator_core import (
     translate_with_meta,
 )
 from paths import settings_path
-from strings import lang_name, t
+from strings import UI_LANG_NATIVE, lang_name, t, ui_lang_options
 
 POPOVER_W, POPOVER_H = 360, 468
-SETTINGS_W, SETTINGS_H = 320, 236
+SETTINGS_W, SETTINGS_H = 320, 268
 DEBOUNCE_INTERVAL = 0.6
+FADE_DURATION = 0.1
+FADE_STEP = 1.0 / 60.0
+DIVIDER_LINE_THRESHOLD = 5
 APP_VERSION = "1.1.0"
 APP_NAME = "Translate Bar"
 LAUNCH_LABEL = "com.translatebar.menubar"
@@ -111,6 +114,29 @@ def save_source_lang(code: str) -> None:
     _write_settings({"source_lang": code})
 
 
+HISTORY_MODES = ("inline", "screen")
+HISTORY_MODE_DEFAULT = "screen"
+
+
+def load_history_mode() -> str:
+    mode = str(_read_settings().get("history_mode", HISTORY_MODE_DEFAULT)).lower()
+    return mode if mode in HISTORY_MODES else HISTORY_MODE_DEFAULT
+
+
+def save_history_mode(mode: str) -> None:
+    _write_settings(
+        {"history_mode": mode if mode in HISTORY_MODES else HISTORY_MODE_DEFAULT}
+    )
+
+
+def load_history_expanded() -> bool:
+    return bool(_read_settings().get("history_expanded", False))
+
+
+def save_history_expanded(expanded: bool) -> None:
+    _write_settings({"history_expanded": expanded})
+
+
 def ensure_single_instance():
     fh = open(_LOCK_PATH, "w")
     try:
@@ -163,9 +189,9 @@ def _symbol(name, size=14):
     return img
 
 
-def _icon_button(rect, symbol, fallback_title, action, target, tip=""):
+def _icon_button(rect, symbol, fallback_title, action, target, tip="", size=14):
     button = AppKit.NSButton.alloc().initWithFrame_(rect)
-    img = _symbol(symbol)
+    img = _symbol(symbol, size)
     if img is not None:
         button.setImage_(img)
         button.setImagePosition_(AppKit.NSImageOnly)
@@ -186,15 +212,19 @@ def _secondary_label(rect, text):
     return label
 
 
-UI_LANG_OPTIONS = ("system", "ru", "en")
+UI_LANG_CODES = ui_lang_options()
 
 
 class TranslatorViewController(AppKit.NSViewController):
     pass
 
 
-def _popup(rect, titles, action, target):
-    popup = AppKit.NSPopUpButton.alloc().initWithFrame_pullsDown_(rect, False)
+def _popup(rect, titles, action, target, pulls_down=False):
+    popup = AppKit.NSPopUpButton.alloc().initWithFrame_pullsDown_(rect, pulls_down)
+    if pulls_down:
+        # В pullsDown первый item — это заголовок кнопки, а не пункт меню:
+        # добавляем пустой, иначе первый язык пропадёт из списка.
+        popup.addItemWithTitle_("")
     popup.addItemsWithTitles_(titles)
     try:
         popup.setBezelStyle_(AppKit.NSInlineBezelStyle)
@@ -255,15 +285,15 @@ def _install_main_menu():
     main_menu.addItem_(app_item)
 
     edit_item = AppKit.NSMenuItem.alloc().init()
-    edit_item.setTitle_("Edit")
-    edit_menu = AppKit.NSMenu.alloc().initWithTitle_("Edit")
+    edit_item.setTitle_(t("menu_edit"))
+    edit_menu = AppKit.NSMenu.alloc().initWithTitle_(t("menu_edit"))
     for title, action, key in [
-        ("Undo", "undo:", "z"),
-        ("Redo", "redo:", "Z"),
-        ("Cut", "cut:", "x"),
-        ("Copy", "copy:", "c"),
-        ("Paste", "paste:", "v"),
-        ("Select All", "selectAll:", "a"),
+        (t("edit_undo"), "undo:", "z"),
+        (t("edit_redo"), "redo:", "Z"),
+        (t("edit_cut"), "cut:", "x"),
+        (t("edit_copy"), "copy:", "c"),
+        (t("edit_paste"), "paste:", "v"),
+        (t("edit_select_all"), "selectAll:", "a"),
     ]:
         edit_menu.addItem_(
             AppKit.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
@@ -361,8 +391,20 @@ class AppDelegate(NSObject):
     def init(self):
         self = objc.super(AppDelegate, self).init()
         self.history = load_history()
+        self.history_mode = load_history_mode()
+        # Вариант А: в режиме отдельного экрана поповер всегда
+        # открывается с перевода, сохранённое состояние игнорируется.
+        self.history_expanded = (
+            load_history_expanded() if self.history_mode == "inline" else False
+        )
         self._last_click = 0.0
+        self._prev_input = ""
         self._req_id = 0
+        self._fade_timer = None
+        self._fade_step = 0
+        self._divider_timer = None
+        self._divider_alpha = 0.0
+        self._divider_wanted = 0.0
         self._build_status_item()
         self._build_popover()
         self._build_settings()
@@ -412,10 +454,12 @@ class AppDelegate(NSObject):
         row_y = POPOVER_H - 38
         self.source_popup = _popup(
             AppKit.NSMakeRect(12, row_y, 131, 26),
-            [label for label, _, _ in SOURCE_LANGUAGES],
+            [lang_name(code) for _, code, _ in SOURCE_LANGUAGES],
             "sourceChanged:",
             self,
+            pulls_down=True,
         )
+        self.source_popup.setFocusRingType_(AppKit.NSFocusRingTypeNone)
         c.addSubview_(self.source_popup)
         _pointer_cursor(self.source_popup, self)
 
@@ -432,23 +476,26 @@ class AppDelegate(NSObject):
 
         self.target_popup = _popup(
             AppKit.NSMakeRect(183, row_y, 131, 26),
-            [label for label, _, _ in TARGET_LANGUAGES],
+            [lang_name(code) for _, code, _ in TARGET_LANGUAGES],
             "languageChanged:",
             self,
+            pulls_down=True,
         )
+        self.target_popup.setFocusRingType_(AppKit.NSFocusRingTypeNone)
         c.addSubview_(self.target_popup)
         _pointer_cursor(self.target_popup, self)
 
-        self.gear_btn = _icon_button(
+        self.hist_toggle_btn = _icon_button(
             AppKit.NSMakeRect(320, row_y, 28, 26),
-            "gearshape",
-            "⚙",
-            "openSettings:",
+            "clock",
+            "◷",
+            "toggleHistory:",
             self,
-            tip=t("tip_settings"),
+            tip=t("tip_history_expand"),
+            size=16,
         )
-        c.addSubview_(self.gear_btn)
-        _pointer_cursor(self.gear_btn, self)
+        c.addSubview_(self.hist_toggle_btn)
+        _pointer_cursor(self.hist_toggle_btn, self)
 
         self.input_scroll, self.input_view = _scroll_with_text(
             AppKit.NSMakeRect(12, 322, POPOVER_W - 24, 100), True, bordered=False
@@ -461,6 +508,18 @@ class AppDelegate(NSObject):
         )
         self.placeholder.setFont_(AppKit.NSFont.systemFontOfSize_(14))
         c.addSubview_(self.placeholder)
+
+        # Layer-backed NSView: NSBox высотой 1pt в NSVisualEffectView после
+        # смены alpha перестаёт перерисовываться.
+        self.input_divider = AppKit.NSView.alloc().initWithFrame_(
+            AppKit.NSMakeRect(12, 320, POPOVER_W - 24, 1)
+        )
+        self.input_divider.setWantsLayer_(True)
+        cg = AppKit.NSColor.separatorColor().CGColor()
+        self._divider_cgcolor = cg
+        self.input_divider.layer().setBackgroundColor_(cg)
+        self.input_divider.setAlphaValue_(0.0)
+        c.addSubview_(self.input_divider)
 
         self.clear_text_btn = _icon_button(
             AppKit.NSMakeRect(288, 298, 28, 22),
@@ -554,6 +613,8 @@ class AppDelegate(NSObject):
         self.hist_empty.setAlignment_(AppKit.NSCenterTextAlignment)
         c.addSubview_(self.hist_empty)
 
+        self._apply_history_state()
+
         self.popover = AppKit.NSPopover.alloc().init()
         self.popover.setContentViewController_(self.vc)
         # Semitransient: closes on outside click, stays open for in-popover menus.
@@ -577,6 +638,120 @@ class AppDelegate(NSObject):
     def _outside_click(self, event):
         if self.popover.isShown():
             self.popover.close()
+
+    def _set_history_toggle_icon(self):
+        img = _symbol("clock", 16)
+        if img is not None:
+            self.hist_toggle_btn.setImage_(img)
+            self.hist_toggle_btn.setImagePosition_(AppKit.NSImageOnly)
+        else:
+            self.hist_toggle_btn.setImage_(None)
+            self.hist_toggle_btn.setTitle_("◷")
+        self.hist_toggle_btn.setToolTip_(
+            t("tip_history_collapse" if self.history_expanded else "tip_history_expand")
+        )
+
+    def _stop_fade(self):
+        if self._fade_timer is not None:
+            self._fade_timer.invalidate()
+            self._fade_timer = None
+        self.output_scroll.setAlphaValue_(1.0)
+
+    def _apply_history_state(self):
+        window = self.vc.view().window()
+        self._stop_fade()
+        if self.history_mode == "screen" and self.history_expanded:
+            # Отдельный экран истории: перевод скрыт, список на весь поповер.
+            self.input_scroll.setHidden_(True)
+            self.placeholder.setHidden_(True)
+            self.clear_text_btn.setHidden_(True)
+            self.caption.setHidden_(True)
+            self.copy_btn.setHidden_(True)
+            self.output_scroll.setHidden_(True)
+            self.divider.setHidden_(True)
+            if self._divider_timer is not None:
+                self._divider_timer.invalidate()
+                self._divider_timer = None
+            self._divider_wanted = 0.0
+            self._divider_alpha = 0.0
+            self.input_divider.setAlphaValue_(0.0)
+            self.input_divider.setHidden_(True)
+            self.recent_label.setFrame_(
+                AppKit.NSMakeRect(12, POPOVER_H - 70, 150, 18)
+            )
+            self.clear_btn.setFrame_(
+                AppKit.NSMakeRect(268, POPOVER_H - 70, 80, 18)
+            )
+            self.table_scroll.setFrame_(
+                AppKit.NSMakeRect(12, 16, POPOVER_W - 24, POPOVER_H - 92)
+            )
+            self.hist_empty.setFrame_(
+                AppKit.NSMakeRect(12, 200, POPOVER_W - 24, 20)
+            )
+            self.recent_label.setHidden_(False)
+            self.clear_btn.setHidden_(False)
+            self.table_scroll.setHidden_(False)
+        else:
+            # Экран перевода: встроенная история снизу (или свёрнута).
+            self.input_scroll.setHidden_(False)
+            self.clear_text_btn.setHidden_(False)
+            self.caption.setHidden_(False)
+            self.copy_btn.setHidden_(False)
+            self.output_scroll.setHidden_(False)
+            self.placeholder.setHidden_(bool(self.input_view.string()))
+            if self.history_expanded:
+                self.output_scroll.setFrame_(
+                    AppKit.NSMakeRect(12, 192, POPOVER_W - 24, 100)
+                )
+            else:
+                self.output_scroll.setFrame_(
+                    AppKit.NSMakeRect(12, 16, POPOVER_W - 24, 276)
+                )
+            self.divider.setFrame_(
+                AppKit.NSMakeRect(12, 184, POPOVER_W - 24, 1)
+            )
+            self.recent_label.setFrame_(
+                AppKit.NSMakeRect(12, 162, 150, 18)
+            )
+            self.clear_btn.setFrame_(
+                AppKit.NSMakeRect(268, 162, 80, 18)
+            )
+            self.table_scroll.setFrame_(
+                AppKit.NSMakeRect(12, 16, POPOVER_W - 24, 140)
+            )
+            self.hist_empty.setFrame_(
+                AppKit.NSMakeRect(12, 76, POPOVER_W - 24, 20)
+            )
+            self.divider.setHidden_(not self.history_expanded)
+            self.recent_label.setHidden_(not self.history_expanded)
+            self.clear_btn.setHidden_(not self.history_expanded)
+            self.table_scroll.setHidden_(not self.history_expanded)
+        self.hist_empty.setHidden_(
+            not self.history_expanded or bool(self.history)
+        )
+        if not (self.history_mode == "screen" and self.history_expanded):
+            # На экране перевода линия зависит от числа строк ввода.
+            self._update_input_divider(animate=False)
+        elif self._divider_timer is not None:
+            self._divider_timer.invalidate()
+            self._divider_timer = None
+        self._set_history_toggle_icon()
+        if window is not None:
+            # Поле ввода прячется вместе с фокусом — уводим его явно,
+            # иначе кольцо фокуса падает на кнопки языков.
+            try:
+                if self.history_mode == "screen" and self.history_expanded:
+                    window.makeFirstResponder_(self.hist_table)
+                else:
+                    window.makeFirstResponder_(self.input_view)
+            except (AttributeError, objc.error):
+                pass
+
+    def toggleHistory_(self, sender):
+        self.history_expanded = not self.history_expanded
+        if self.history_mode == "inline":
+            save_history_expanded(self.history_expanded)
+        self._apply_history_state()
 
     def _build_settings(self):
         style = (
@@ -631,9 +806,15 @@ class AppDelegate(NSObject):
         c.addSubview_(
             _label(AppKit.NSMakeRect(20, SETTINGS_H - 126, 140, 22), t("ui_language"))
         )
+        self.ui_lang_codes = [
+            c for c in UI_LANG_CODES if c == "system" or c in UI_LANG_NATIVE
+        ]
         self.ui_lang_popup = _popup(
             AppKit.NSMakeRect(168, SETTINGS_H - 130, 132, 26),
-            [t("ui_lang_system"), "Русский", "English"],
+            [
+                t("ui_lang_system") if c == "system" else UI_LANG_NATIVE[c]
+                for c in self.ui_lang_codes
+            ],
             "uiLangChanged:",
             self,
         )
@@ -646,6 +827,18 @@ class AppDelegate(NSObject):
                 t("ui_lang_note"),
             )
         )
+
+        c.addSubview_(
+            _label(AppKit.NSMakeRect(20, SETTINGS_H - 184, 140, 22), t("history_mode"))
+        )
+        self.history_mode_popup = _popup(
+            AppKit.NSMakeRect(168, SETTINGS_H - 188, 132, 26),
+            [t("history_mode_inline"), t("history_mode_screen")],
+            "historyModeChanged:",
+            self,
+        )
+        c.addSubview_(self.history_mode_popup)
+        _pointer_cursor(self.history_mode_popup, self)
 
         divider = AppKit.NSBox.alloc().initWithFrame_(
             AppKit.NSMakeRect(20, 44, SETTINGS_W - 40, 1)
@@ -686,6 +879,10 @@ class AppDelegate(NSObject):
             self.showPopover_(sender)
 
     def showPopover_(self, sender):
+        self._stop_fade()
+        if self.history_mode == "screen" and self.history_expanded:
+            self.history_expanded = False
+            self._apply_history_state()
         AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         button = self.status.button()
         self.popover.showRelativeToRect_ofView_preferredEdge_(
@@ -711,6 +908,7 @@ class AppDelegate(NSObject):
         self.input_view.setString_(text)
         self.placeholder.setHidden_(True)
         self._update_clear_button()
+        self._update_input_divider(animate=True)
         self.requestTranslation()
 
     def popoverDidShow_(self, notification):
@@ -722,6 +920,9 @@ class AppDelegate(NSObject):
         if self._debounce_timer is not None:
             self._debounce_timer.invalidate()
             self._debounce_timer = None
+        if self.history_mode == "screen" and self.history_expanded:
+            self.history_expanded = False
+            self._apply_history_state()
 
     def mouseEntered_(self, event):
         AppKit.NSCursor.pointingHandCursor().set()
@@ -731,24 +932,45 @@ class AppDelegate(NSObject):
 
     def uiLangChanged_(self, sender):
         idx = self.ui_lang_popup.indexOfSelectedItem()
-        code = UI_LANG_OPTIONS[idx] if 0 <= idx < len(UI_LANG_OPTIONS) else "system"
+        codes = self.ui_lang_codes
+        code = codes[idx] if 0 <= idx < len(codes) else "system"
         _write_settings({"ui_lang": code})
 
     def _restore_ui_lang(self):
         try:
             data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-            saved = str(data.get("ui_lang", "system")).lower() if isinstance(data, dict) else "system"
+            saved = str(data.get("ui_lang", "system")) if isinstance(data, dict) else "system"
         except (OSError, ValueError, AttributeError):
             saved = "system"
-        if saved not in UI_LANG_OPTIONS:
+        codes = self.ui_lang_codes
+        if saved not in codes:
             saved = "system"
-        self.ui_lang_popup.selectItemAtIndex_(UI_LANG_OPTIONS.index(saved))
+        self.ui_lang_popup.selectItemAtIndex_(codes.index(saved))
+
+    def historyModeChanged_(self, sender):
+        idx = self.history_mode_popup.indexOfSelectedItem()
+        mode = HISTORY_MODES[idx] if 0 <= idx < len(HISTORY_MODES) else HISTORY_MODE_DEFAULT
+        self.history_mode = mode
+        save_history_mode(mode)
+        if mode == "screen":
+            # Вариант А: отдельный экран всегда начинается с перевода.
+            self.history_expanded = False
+        else:
+            self.history_expanded = load_history_expanded()
+        self._apply_history_state()
+
+    def _restore_history_mode(self):
+        mode = load_history_mode()
+        if mode not in HISTORY_MODES:
+            mode = HISTORY_MODE_DEFAULT
+        self.history_mode_popup.selectItemAtIndex_(HISTORY_MODES.index(mode))
 
     def openSettings_(self, sender):
         self.autostart_box.setState_(
             AppKit.NSOnState if is_autostart_enabled() else AppKit.NSOffState
         )
         self._restore_ui_lang()
+        self._restore_history_mode()
         # Popover lives at NSStatusWindowLevel (25); plain floating (3) would open behind it.
         level = AppKit.NSFloatingWindowLevel
         try:
@@ -780,13 +1002,14 @@ class AppDelegate(NSObject):
         self.caption.setStringValue_(text)
 
     def _target_code(self):
-        idx = self.target_popup.indexOfSelectedItem()
+        # +1: item 0 в pullsDown — заголовок кнопки, языки начинаются с индекса 1.
+        idx = self.target_popup.indexOfSelectedItem() - 1
         if 0 <= idx < len(TARGET_LANGUAGES):
             return TARGET_LANGUAGES[idx][1]
         return DEFAULT_TARGET
 
     def _source_code(self):
-        idx = self.source_popup.indexOfSelectedItem()
+        idx = self.source_popup.indexOfSelectedItem() - 1
         if 0 <= idx < len(SOURCE_LANGUAGES):
             return SOURCE_LANGUAGES[idx][1]
         return SOURCE_AUTO
@@ -794,22 +1017,29 @@ class AppDelegate(NSObject):
     def _select_target(self, code):
         for i, (_, google, _) in enumerate(TARGET_LANGUAGES):
             if google.lower() == code.lower():
-                self.target_popup.selectItemAtIndex_(i)
+                self.target_popup.selectItemAtIndex_(i + 1)
                 return
 
     def _select_source(self, code):
         for i, (_, google, _) in enumerate(SOURCE_LANGUAGES):
             if google.lower() == code.lower():
-                self.source_popup.selectItemAtIndex_(i)
+                self.source_popup.selectItemAtIndex_(i + 1)
                 return
 
     def _restore_languages(self):
         self._select_source(load_source_lang())
         self._select_target(load_target_lang())
+        self._sync_language_titles()
+
+    def _sync_language_titles(self):
+        # pullsDown-кнопки не обновляют заголовок сами — выставляем вручную.
+        self.source_popup.setTitle_(lang_name(self._source_code()))
+        self.target_popup.setTitle_(lang_name(self._target_code()))
 
     def _save_languages(self):
         save_source_lang(self._source_code())
         save_target_lang(self._target_code())
+        self._sync_language_titles()
 
     def languageChanged_(self, sender):
         self._save_languages()
@@ -836,14 +1066,180 @@ class AppDelegate(NSObject):
             self._select_target(src)
         self._save_languages()
 
+    @staticmethod
+    def _is_pure_deletion(old: str, new: str) -> bool:
+        if new == old:
+            return True
+        it = iter(old)
+        return all(ch in it for ch in new)
+
     def textDidChange_(self, notification):
-        self.placeholder.setHidden_(bool(self.input_view.string()))
+        new = str(self.input_view.string())
+        self.placeholder.setHidden_(bool(new))
         self._update_clear_button()
+        # Синхронный пересчёт: _line_count берёт максимум из layout и оценки
+        # по ширине, поэтому устаревший layout не может занизить число строк.
+        self._update_input_divider(animate=True)
         if self._debounce_timer is not None:
             self._debounce_timer.invalidate()
+            self._debounce_timer = None
+        if self._is_pure_deletion(self._prev_input, new):
+            # Удаление не пересчитывает перевод: вывод замирает
+            # на последнем результате, пока не начнут набирать заново.
+            self._prev_input = new
+            return
+        self._prev_input = new
         self._debounce_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             DEBOUNCE_INTERVAL, self, "debounceFired:", None, False
         )
+
+    def _fade_in_output(self):
+        try:
+            reduce = AppKit.NSWorkspace.sharedWorkspace().accessibilityDisplayShouldReduceMotion()
+        except (AttributeError, objc.error):
+            reduce = False
+        if self._fade_timer is not None:
+            self._fade_timer.invalidate()
+            self._fade_timer = None
+        if reduce:
+            self.output_scroll.setAlphaValue_(1.0)
+            return
+        # Ручной фейд: animator()/CoreAnimation в этой иерархии не анимирует alpha.
+        self._fade_step = 0
+        self.output_scroll.setAlphaValue_(0.0)
+        self._fade_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            FADE_STEP, self, "fadeTick:", None, True
+        )
+
+    def fadeTick_(self, timer):
+        self._fade_step += 1
+        alpha = min(1.0, self._fade_step * FADE_STEP / FADE_DURATION)
+        self.output_scroll.setAlphaValue_(alpha)
+        if alpha >= 1.0:
+            timer.invalidate()
+            self._fade_timer = None
+
+    def _line_count(self, view) -> int:
+        """Число отображаемых строк: максимум из layout-оценки и оценки по ширине."""
+        text = str(view.string())
+        if not text:
+            return 0
+        layout_count = 0
+        try:
+            container = view.textContainer()
+            layout = view.layoutManager()
+            if layout is not None and container is not None:
+                layout.ensureLayoutForTextContainer_(container)
+                try:
+                    layout.ensureLayoutForCharacterRange_(
+                        AppKit.NSMakeRange(0, layout.numberOfCharacters())
+                    )
+                except (AttributeError, objc.error):
+                    pass
+                total = layout.numberOfGlyphs()
+                index = 0
+                while index < total:
+                    try:
+                        _rect, rng = layout.lineFragmentRectForGlyphAtIndex_effectiveRange_(
+                            index, None
+                        )
+                    except (AttributeError, objc.error):
+                        break
+                    layout_count += 1
+                    index = rng.location + (rng.length or 1)
+        except (AttributeError, objc.error):
+            layout_count = 0
+        # Оценка по ширине: не зависит от актуальности layout.
+        width = 0.0
+        try:
+            width = float(view.textContainer().containerSize().width)
+        except (AttributeError, objc.error):
+            width = float(view.bounds().size.width)
+        if width <= 1.0:
+            width = float(view.bounds().size.width) or 300.0
+        font = view.font()
+        char_w = 0.0
+        try:
+            char_w = float(font.maximumAdvancementForGlyph_(font.glyphWithName_("M")).width)
+        except (AttributeError, objc.error):
+            char_w = 0.0
+        if char_w <= 1.0:
+            char_w = float(font.pointSize()) * 0.6 or 8.0
+        per_line = max(1, int(width // char_w))
+        est = 0
+        paragraphs = text.split("\n")
+        # Завершающий перенос не создаёт новую отображаемую строку.
+        if len(paragraphs) > 1 and paragraphs[-1] == "":
+            paragraphs = paragraphs[:-1]
+        for paragraph in paragraphs:
+            est += max(1, -(-len(paragraph) // per_line))
+        # Приоритет layout: он точен. Оценка — только если layout недоступен.
+        return layout_count if layout_count > 0 else est
+
+    def _set_divider_alpha(self, alpha: float) -> None:
+        self._divider_alpha = alpha
+        self.input_divider.setAlphaValue_(alpha)
+        self.input_divider.setHidden_(alpha <= 0.0)
+
+    def _divider_should_show(self) -> bool:
+        return self._line_count(self.input_view) >= DIVIDER_LINE_THRESHOLD
+
+    def _update_input_divider(self, animate: bool = True) -> None:
+        if not hasattr(self, "input_divider"):
+            return
+        wanted = 1.0 if self._divider_should_show() else 0.0
+        if abs(self._divider_alpha - wanted) < 0.01 and not self.input_divider.isHidden():
+            return
+        previous = self._divider_alpha
+        self._divider_wanted = wanted
+        self._divider_alpha = wanted
+        if wanted > 0.0:
+            self.input_divider.setHidden_(False)
+        # Состояние применяется сразу, плавность — только визуальный эффект
+        # Core Animation (таймеры и animator() здесь ненадёжны).
+        if animate and not self._reduce_motion() and previous != wanted:
+            self._animate_divider_opacity(previous, wanted)
+        else:
+            if self._divider_timer is not None:
+                self._divider_timer.invalidate()
+                self._divider_timer = None
+            self.input_divider.setAlphaValue_(wanted)
+            self.input_divider.setHidden_(wanted <= 0.0)
+
+    def _animate_divider_opacity(self, from_alpha: float, to_alpha: float) -> None:
+        layer = self.input_divider.layer()
+        if layer is None:
+            self.input_divider.setAlphaValue_(to_alpha)
+            self.input_divider.setHidden_(to_alpha <= 0.0)
+            return
+        anim = AppKit.CABasicAnimation.animationWithKeyPath_("opacity")
+        anim.setFromValue_(from_alpha)
+        anim.setToValue_(to_alpha)
+        anim.setDuration_(FADE_DURATION)
+        anim.setRemovedOnCompletion_(True)
+        layer.addAnimation_forKey_(anim, "dividerFade")
+        self.input_divider.setAlphaValue_(to_alpha)
+        if to_alpha <= 0.0:
+            # Скрываем после завершения анимации, не блокируя финальное состояние.
+            AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                FADE_DURATION + 0.02, self, "hideDividerAfterFade:", None, False
+            )
+        else:
+            self.input_divider.setHidden_(False)
+
+    def hideDividerAfterFade_(self, timer):
+        if self._divider_wanted <= 0.0:
+            self.input_divider.setHidden_(True)
+
+    @staticmethod
+    def _reduce_motion() -> bool:
+        try:
+            return bool(
+                AppKit.NSWorkspace.sharedWorkspace()
+                .accessibilityDisplayShouldReduceMotion()
+            )
+        except (AttributeError, objc.error):
+            return False
 
     def _update_clear_button(self):
         target = 1.0 if self.input_view.string().strip() else 0.0
@@ -858,8 +1254,10 @@ class AppDelegate(NSObject):
         if self._debounce_timer is not None:
             self._debounce_timer.invalidate()
             self._debounce_timer = None
+        self._prev_input = ""
         self.input_view.setString_("")
         self.output_view.setString_("")
+        self._update_input_divider(animate=True)
         self.placeholder.setHidden_(False)
         self._update_clear_button()
         self._set_caption(self._direction_caption())
@@ -904,6 +1302,7 @@ class AppDelegate(NSObject):
 
     def requestTranslation(self):
         text = self.input_view.string().strip()
+        self._prev_input = str(self.input_view.string())
         if not text:
             self.output_view.setString_("")
             self._set_caption(self._direction_caption())
@@ -963,6 +1362,7 @@ class AppDelegate(NSObject):
             return
         result = payload["result"]
         self.output_view.setString_(result)
+        self._fade_in_output()
         src = str(payload.get("src", "auto"))
         target = str(payload.get("target", ""))
         self._set_caption(f"{lang_name(src)} → {lang_name(target)}")
@@ -992,8 +1392,13 @@ class AppDelegate(NSObject):
         row = self.hist_table.selectedRow()
         if 0 <= row < len(self.history):
             item = self.history[row]
+            if self.history_mode == "screen" and self.history_expanded:
+                self.history_expanded = False
+                self._apply_history_state()
             self.input_view.setString_(item["src"])
+            self._prev_input = item["src"]
             self.output_view.setString_(item["dst"])
+            self._update_input_divider(animate=True)
             self.placeholder.setHidden_(True)
             self._update_clear_button()
             self._set_caption(
@@ -1012,7 +1417,9 @@ class AppDelegate(NSObject):
 
     def _refresh_history(self):
         self.hist_table.reloadData()
-        self.hist_empty.setHidden_(bool(self.history))
+        self.hist_empty.setHidden_(
+            not self.history_expanded or bool(self.history)
+        )
 
 
 if __name__ == "__main__":

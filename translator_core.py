@@ -14,27 +14,33 @@ from deep_translator.exceptions import RequestError, TooManyRequests
 from langdetect import DetectorFactory, LangDetectException, detect_langs
 
 from paths import history_path
-from strings import TIME_FORMS, get_ui_lang
+from strings import TIME_FORMS, get_ui_lang, lang_name
 
 DetectorFactory.seed = 0
 
 TARGET_LANG_GOOGLE = "ru"
 TARGET_LANG_MYMEMORY = "russian"
 
-TARGET_LANGUAGES = [
-    ("Русский", "ru", "russian"),
-    ("English", "en", "english"),
-    ("Français", "fr", "french"),
-    ("Deutsch", "de", "german"),
-    ("Español", "es", "spanish"),
-    ("Italiano", "it", "italian"),
-    ("Português", "pt", "portuguese"),
-    ("Polski", "pl", "polish"),
-    ("Українська", "uk", "ukrainian"),
-    ("日本語", "ja", "japanese"),
-    ("中文", "zh-CN", "chinese simplified"),
-    ("한국어", "ko", "korean"),
-]
+# Порядок в попапах выбора языков — по локализованному названию
+# (strings.lang_name), чтобы список шёл по алфавиту в текущем языке UI.
+# Пересчитывается при запуске; смена языка UI применяется после перезапуска.
+TARGET_LANGUAGES = sorted(
+    [
+        ("Русский", "ru", "russian"),
+        ("English", "en", "english"),
+        ("Français", "fr", "french"),
+        ("Deutsch", "de", "german"),
+        ("Español", "es", "spanish"),
+        ("Italiano", "it", "italian"),
+        ("Português", "pt", "portuguese"),
+        ("Polski", "pl", "polish"),
+        ("Українська", "uk", "ukrainian"),
+        ("日本語", "ja", "japanese"),
+        ("中文", "zh-CN", "chinese simplified"),
+        ("한국어", "ko", "korean"),
+    ],
+    key=lambda item: lang_name(item[1]).lower(),
+)
 
 MIN_PAUSE_BETWEEN_REQUESTS = 0.4
 _last_request_time: float = 0.0
@@ -419,8 +425,18 @@ def _plural(n: int, forms: tuple[str, str, str]) -> str:
     return forms[2]
 
 
+def _unit(n: int, forms: tuple[str, str, str], lang: str) -> str:
+    if lang in ("ja", "zh-Hans"):
+        return forms[0]
+    if lang in ("en", "de", "fr"):
+        return forms[0] if n == 1 else forms[1]
+    return _plural(n, forms)
+
+
 def relative_time(ts, lang: str | None = None) -> str:
-    forms = TIME_FORMS.get(lang or get_ui_lang(), TIME_FORMS["ru"])
+    lang = lang or get_ui_lang()
+    forms = TIME_FORMS.get(lang, TIME_FORMS["ru"])
+    template = str(forms.get("template", "{n} {unit} {ago}"))
     try:
         delta = time.time() - float(ts)
     except (TypeError, ValueError):
@@ -429,10 +445,14 @@ def relative_time(ts, lang: str | None = None) -> str:
         return forms["just_now"][0]
     minutes = int(delta // 60)
     if minutes < 60:
-        return f"{minutes} {_plural(minutes, forms['minute'])} {forms['ago'][0]}"
+        return template.format(
+            n=minutes, unit=_unit(minutes, forms["minute"], lang), ago=forms["ago"][0]
+        )
     hours = minutes // 60
     if hours < 24:
-        return f"{hours} {_plural(hours, forms['hour'])} {forms['ago'][0]}"
+        return template.format(
+            n=hours, unit=_unit(hours, forms["hour"], lang), ago=forms["ago"][0]
+        )
     try:
         return time.strftime("%d.%m.%Y", time.localtime(float(ts)))
     except (TypeError, ValueError, OverflowError):

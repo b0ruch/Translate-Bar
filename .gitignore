@@ -12,3 +12,5 @@ build/
 *.popclipextz
 *.spec
 !TranslateBar.spec
+AGENTS.md
+.tmp
