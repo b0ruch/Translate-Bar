@@ -18,8 +18,8 @@ from strings import TIME_FORMS, get_ui_lang, lang_name
 
 DetectorFactory.seed = 0
 
-TARGET_LANG_GOOGLE = "ru"
-TARGET_LANG_MYMEMORY = "russian"
+TARGET_LANG_GOOGLE = "en"
+TARGET_LANG_MYMEMORY = "english"
 
 # Порядок в попапах выбора языков — по локализованному названию
 # (strings.lang_name), чтобы список шёл по алфавиту в текущем языке UI.
