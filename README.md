@@ -23,7 +23,7 @@ A minimalist menu bar translator for macOS. Click the icon, type, get the transl
 
 ## Install
 
-1. Download `TranslateBar-1.1.0-arm64.dmg` from the [Releases](../../releases) page.
+1. Download `TranslateBar-1.2.0-arm64.dmg` from the [Releases](../../releases) page.
 2. Open it and drag **Translate Bar.app** into **Applications**.
 3. Launch it. On the first run macOS will warn about an unsigned developer — right-click the app → **Open** to confirm.
 
@@ -60,7 +60,7 @@ To make a DMG (requires [create-dmg](https://github.com/create-dmg/create-dmg)):
 ```bash
 create-dmg --volname "Translate Bar" --window-size 520 340 --icon-size 96 \
   --icon "Translate Bar.app" 140 170 --app-drop-link 380 170 \
-  "TranslateBar-1.1.0-arm64.dmg" "dist/Translate Bar.app"
+  "TranslateBar-1.2.0-arm64.dmg" "dist/Translate Bar.app"
 ```
 
 ## License

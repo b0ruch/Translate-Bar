@@ -63,8 +63,8 @@ app = BUNDLE(
     bundle_identifier="com.translatebar.menubar",
     info_plist={
         "CFBundleDisplayName": "Translate Bar",
-        "CFBundleShortVersionString": "1.1.0",
-        "CFBundleVersion": "1.1.0",
+        "CFBundleShortVersionString": "1.2.0",
+        "CFBundleVersion": "1.2.0",
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
         "LSMinimumSystemVersion": "13.0",
