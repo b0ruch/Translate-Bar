@@ -2,7 +2,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Сборка Translate Bar: ./.venv/bin/python -m pip install -r requirements-build.txt && ./.venv/bin/pyinstaller TranslateBar.spec"""
 
+import os
 from PyInstaller.utils.hooks import collect_data_files
+
+# PyInstaller does not cross-compile: target_arch only validates/selects the
+# architecture slices of already-built binaries. Building universal2 or x86_64
+# requires an appropriately built Python environment.
+TARGET_ARCH = os.environ.get("TARGET_ARCH", "arm64")
+if TARGET_ARCH not in ("arm64", "x86_64", "universal2"):
+    raise SystemExit(
+        "TARGET_ARCH must be one of arm64, x86_64, universal2; got %r" % (TARGET_ARCH,)
+    )
 
 datas = collect_data_files("langdetect")
 
@@ -33,7 +43,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    target_arch="arm64",
+    target_arch=TARGET_ARCH,
     codesign_identity=None,
     entitlements_file=None,
 )
