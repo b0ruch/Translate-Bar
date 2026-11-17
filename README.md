@@ -12,7 +12,7 @@ A minimalist menu bar translator for macOS. Click the icon, type, get the transl
 - Lives in the menu bar (no Dock icon)
 - 12 target languages, source language detection or manual selection with one-click swap
 - One-click translation history with reuse
-- Interface in Russian or English (follows the system language by default)
+- Interface in 6 languages, follows the system language by default
 - Free, no API keys, translation history stored locally on your Mac
 
 ## Requirements
