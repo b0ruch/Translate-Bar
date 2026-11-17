@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: MIT
 # -*- mode: python ; coding: utf-8 -*-
-"""Сборка Translate Bar: ./.venv/bin/python -m pip install -r requirements-build.txt && ./.venv/bin/pyinstaller TranslateBar.spec"""
+"""Сборка Translate Bar.
+
+arm64 (по умолчанию):
+    ./.venv/bin/python -m pip install -r requirements-build.txt
+    ./.venv/bin/pyinstaller -y TranslateBar.spec
+
+universal2 (нужен universal2-Python от python.org, см. README):
+    TARGET_ARCH=universal2 ./.venv-universal/bin/pyinstaller -y TranslateBar.spec
+"""
 
 import os
 from PyInstaller.utils.hooks import collect_data_files
