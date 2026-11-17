@@ -5,8 +5,14 @@
 import os
 from PyInstaller.utils.hooks import collect_data_files
 
-# Архитектура: TARGET_ARCH=x86_64 (Intel) | arm64 | universal2. По умолчанию — x86_64.
-TARGET_ARCH = os.environ.get("TARGET_ARCH", "x86_64")
+# PyInstaller does not cross-compile: target_arch only validates/selects the
+# architecture slices of already-built binaries. Building universal2 or x86_64
+# requires an appropriately built Python environment.
+TARGET_ARCH = os.environ.get("TARGET_ARCH", "arm64")
+if TARGET_ARCH not in ("arm64", "x86_64", "universal2"):
+    raise SystemExit(
+        "TARGET_ARCH must be one of arm64, x86_64, universal2; got %r" % (TARGET_ARCH,)
+    )
 
 datas = collect_data_files("langdetect")
 
