@@ -745,9 +745,10 @@ class AppDelegate(NSObject):
         line.layer().setBackgroundColor_(AppKit.NSColor.separatorColor().CGColor())
         self.update_banner.addSubview_(line)
 
-        # Подпись и кнопка сидят на одной базовой линии: 12pt, вертикальные
-        # центры совпадают (18/2+8 == 22/2+6). Раньше подпись была 11pt в
-        # рамке h=18, а кнопка 12pt в h=22 — «Установить» съезжала вниз.
+        # Подпись и кнопка сидят на ОДНОЙ базовой линии (проверено рендером:
+        # верх глифов совпадает до пикселя). Кнопка y=8 при h=22 — не y=6:
+        # внутри NSButton текст центрируется по titleRect (15pt), а не по всей
+        # рамке, поэтому «Установить» при y=6 уезжала на 2pt вниз.
         self.update_label = _label(AppKit.NSMakeRect(12, 8, 198, 18), "")
         self.update_label.setFont_(AppKit.NSFont.systemFontOfSize_(12))
         self.update_label.setTextColor_(AppKit.NSColor.secondaryLabelColor())
@@ -757,7 +758,7 @@ class AppDelegate(NSObject):
         # Ширина под самую длинную кнопку («Открыть DMG» ~82pt в RU, «Neu starten»)
         # с запасом на остальные языки.
         self.update_action_btn = AppKit.NSButton.alloc().initWithFrame_(
-            AppKit.NSMakeRect(214, 6, 104, 22)
+            AppKit.NSMakeRect(214, 8, 104, 22)
         )
         self.update_action_btn.setBordered_(False)
         self.update_action_btn.setFont_(AppKit.NSFont.systemFontOfSize_(12))
@@ -771,7 +772,7 @@ class AppDelegate(NSObject):
         _pointer_cursor(self.update_action_btn, self)
 
         self.update_close_btn = _icon_button(
-            AppKit.NSMakeRect(326, 7, 20, 20),
+            AppKit.NSMakeRect(326, 9, 20, 20),
             "xmark",
             "✕",
             "skipUpdateVersion:",
@@ -793,23 +794,38 @@ class AppDelegate(NSObject):
 
     def _set_banner_visible(self, visible):
         # isHidden — метод без аргументов (не property и не isHidden_).
-        if bool(self.update_banner.isHidden()) == (not visible):
+        expected_h = POPOVER_H + BANNER_H if visible else POPOVER_H
+        root_h = self.vc.view().frame().size.height
+        # Проверяем не только флаг, но и фактическую высоту корня: AppKit может
+        # переложить view по своему кэшу, и флаг при этом останется верным.
+        if (
+            bool(self.update_banner.isHidden()) == (not visible)
+            and abs(root_h - expected_h) < 0.5
+            and abs(self.content.frame().origin.y - (BANNER_H if visible else 0)) < 0.5
+        ):
             return
         if visible:
             self.update_banner.setHidden_(False)
-            self.content.setFrame_(AppKit.NSMakeRect(0, BANNER_H, POPOVER_W, POPOVER_H))
             size = AppKit.NSMakeSize(POPOVER_W, POPOVER_H + BANNER_H)
         else:
             self.update_banner.setHidden_(True)
-            self.content.setFrame_(AppKit.NSMakeRect(0, 0, POPOVER_W, POPOVER_H))
             size = AppKit.NSMakeSize(POPOVER_W, POPOVER_H)
         self.vc.setPreferredContentSize_(size)
         self.vc.view().setFrame_(AppKit.NSMakeRect(0, 0, size.width, size.height))
-        # Если поповер уже открыт, preferredContentSize сам его не растягивает —
-        # размер надо задать явно, иначе баннер нарисуется за границей.
+        self.content.setFrame_(
+            AppKit.NSMakeRect(
+                0,
+                BANNER_H if visible else 0,
+                POPOVER_W,
+                size.height - (BANNER_H if visible else 0),
+            )
+        )
         try:
-            if self.popover.isShown():
-                self.popover.setContentSize_(size)
+            # setContentSize_ нужен и при ЗАКРЫТОМ поповере. Иначе в его кэше
+            # остаётся прежняя высота (468), и следующее открытие уложит корень
+            # обратно в 468, хотя content уже сдвинут на BANNER_H — контент
+            # вылезает за границу, баннер оказывается в середине окна.
+            self.popover.setContentSize_(size)
         except (AttributeError, objc.error):
             pass
 
@@ -823,6 +839,9 @@ class AppDelegate(NSObject):
         if not updater.is_newer(info["version"], APP_VERSION):
             return None
         return info
+
+    def _banner_should_hide(self):
+        return self._pending_update() is None or self.update_stage == "idle"
 
     def _render_update_banner(self):
         pending = self._pending_update()
@@ -1405,6 +1424,10 @@ class AppDelegate(NSObject):
         self.requestTranslation()
 
     def popoverDidShow_(self, notification):
+        # AppKit укладывает поповер по своему кэшу contentSize. Если баннер
+        # появился, пока поповер был закрыт, кэш мог разойтись с состоянием —
+        # синхронизируем размер с фактическим положением дел.
+        self._set_banner_visible(not self._banner_should_hide())
         window = self.vc.view().window()
         if window is not None:
             window.makeFirstResponder_(self.input_view)
