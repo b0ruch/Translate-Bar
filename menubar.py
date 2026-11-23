@@ -43,16 +43,20 @@ from translator_core import (
     save_history,
     translate_with_meta,
 )
-from paths import settings_path
+from paths import settings_path, updates_dir
 from strings import UI_LANG_NATIVE, lang_name, t, ui_lang_options
+from version import APP_VERSION
+
+import updater
 
 POPOVER_W, POPOVER_H = 360, 468
-SETTINGS_W, SETTINGS_H = 320, 268
+SETTINGS_W, SETTINGS_H = 320, 340
+BANNER_H = 34
 DEBOUNCE_INTERVAL = 0.6
 FADE_DURATION = 0.1
 FADE_STEP = 1.0 / 60.0
 DIVIDER_LINE_THRESHOLD = 5
-APP_VERSION = "1.2.0"
+UPDATE_CHECK_INTERVAL = 24 * 60 * 60
 APP_NAME = "Translate Bar"
 LAUNCH_LABEL = "com.translatebar.menubar"
 LAUNCH_AGENT_PATH = (
@@ -135,6 +139,75 @@ def load_history_expanded() -> bool:
 
 def save_history_expanded(expanded: bool) -> None:
     _write_settings({"history_expanded": expanded})
+
+
+def load_update_auto() -> bool:
+    return bool(_read_settings().get("update_auto_check", True))
+
+
+def save_update_auto(enabled: bool) -> None:
+    _write_settings({"update_auto_check": enabled})
+
+
+# Кэш проверки живёт отдельно от settings.json: это служебные данные, а не
+# пользовательские настройки, и settings.json по-прежнему создаётся только
+# при первом действии пользователя.
+UPDATE_STATE_FILE = updates_dir() / "state.json"
+
+_UPDATE_STATE_KEYS = (
+    "last_check",
+    "version",
+    "url",
+    "name",
+    "size",
+    "sha256",
+)
+
+
+def _read_update_state_file() -> dict:
+    try:
+        data = json.loads(UPDATE_STATE_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def load_update_state() -> dict:
+    data = _read_update_state_file()
+    settings = _read_settings()
+    return {
+        "last_check": float(data.get("last_check") or 0),
+        "version": str(data.get("version") or ""),
+        "url": str(data.get("url") or ""),
+        "name": str(data.get("name") or ""),
+        "size": int(data.get("size") or 0),
+        "sha256": str(data.get("sha256") or ""),
+        "skipped": str(settings.get("update_skipped_version") or ""),
+    }
+
+
+def save_update_state(**patch) -> None:
+    data = {key: _read_update_state_file().get(key) for key in _UPDATE_STATE_KEYS}
+    data.update(
+        {
+            "last_check": patch.get("last_check"),
+            "version": patch.get("version", ""),
+            "url": patch.get("url", ""),
+            "name": patch.get("name", ""),
+            "size": patch.get("size", 0),
+            "sha256": patch.get("sha256", ""),
+        }
+    )
+    try:
+        tmp = UPDATE_STATE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.replace(tmp, UPDATE_STATE_FILE)
+    except OSError:
+        pass
+    if "skipped" in patch:
+        _write_settings({"update_skipped_version": patch["skipped"]})
 
 
 def ensure_single_instance():
@@ -410,6 +483,10 @@ class AppDelegate(NSObject):
         self._build_settings()
         self._restore_languages()
         self._refresh_history()
+        self._restore_update_auto()
+        self._load_cached_update()
+        self._render_update_banner()
+        self._update_auto_check()
         return self
 
     def _build_status_item(self):
@@ -431,6 +508,10 @@ class AppDelegate(NSObject):
 
         self.context_menu = AppKit.NSMenu.alloc().init()
         self.context_menu.addItem_(_menu_item(t("menu_open"), "showPopover:", self))
+        self.check_updates_item = _menu_item(
+            t("menu_check_updates"), "checkUpdatesFromMenu:", self
+        )
+        self.context_menu.addItem_(self.check_updates_item)
         self.context_menu.addItem_(_menu_item(t("menu_settings"), "openSettings:", self))
         self.context_menu.addItem_(AppKit.NSMenuItem.separatorItem())
         self.context_menu.addItem_(_menu_item(t("menu_quit"), "quitApp:", self))
@@ -449,7 +530,14 @@ class AppDelegate(NSObject):
         )
         root.addSubview_(effect)
         self.vc.setView_(root)
-        c = effect
+        # Контент поповера живёт в отдельном контейнере с координатами
+        # 0..POPOVER_H, чтобы баннер обновления сдвигал его целиком, а не
+        # требовал править каждый NSMakeRect в _apply_history_state.
+        self.content = AppKit.NSView.alloc().initWithFrame_(
+            AppKit.NSMakeRect(0, 0, POPOVER_W, POPOVER_H)
+        )
+        root.addSubview_(self.content)
+        c = self.content
 
         row_y = POPOVER_H - 38
         self.source_popup = _popup(
@@ -613,6 +701,8 @@ class AppDelegate(NSObject):
         self.hist_empty.setAlignment_(AppKit.NSCenterTextAlignment)
         c.addSubview_(self.hist_empty)
 
+        self._build_update_banner(root)
+
         self._apply_history_state()
 
         self.popover = AppKit.NSPopover.alloc().init()
@@ -638,6 +728,370 @@ class AppDelegate(NSObject):
     def _outside_click(self, event):
         if self.popover.isShown():
             self.popover.close()
+
+    # --- Обновления -------------------------------------------------------
+
+    def _build_update_banner(self, root):
+        self.update_banner = AppKit.NSView.alloc().initWithFrame_(
+            AppKit.NSMakeRect(0, 0, POPOVER_W, BANNER_H)
+        )
+        self.update_banner.setHidden_(True)
+        root.addSubview_(self.update_banner)
+
+        line = AppKit.NSView.alloc().initWithFrame_(
+            AppKit.NSMakeRect(0, BANNER_H - 1, POPOVER_W, 1)
+        )
+        line.setWantsLayer_(True)
+        line.layer().setBackgroundColor_(AppKit.NSColor.separatorColor().CGColor())
+        self.update_banner.addSubview_(line)
+
+        self.update_label = _secondary_label(
+            AppKit.NSMakeRect(12, 9, 198, 18), ""
+        )
+        self.update_label.setLineBreakMode_(AppKit.NSLineBreakByTruncatingTail)
+        self.update_banner.addSubview_(self.update_label)
+
+        # Ширина под самую длинную кнопку («Открыть DMG» ~82pt в RU, «Neu starten»)
+        # с запасом на остальные языки.
+        self.update_action_btn = AppKit.NSButton.alloc().initWithFrame_(
+            AppKit.NSMakeRect(214, 6, 104, 22)
+        )
+        self.update_action_btn.setBordered_(False)
+        self.update_action_btn.setFont_(AppKit.NSFont.systemFontOfSize_(12))
+        self.update_action_btn.setAlignment_(AppKit.NSRightTextAlignment)
+        self.update_action_btn.setContentTintColor_(
+            AppKit.NSColor.controlAccentColor()
+        )
+        self.update_action_btn.setTarget_(self)
+        self.update_action_btn.setAction_("updateAction:")
+        self.update_banner.addSubview_(self.update_action_btn)
+        _pointer_cursor(self.update_action_btn, self)
+
+        self.update_close_btn = _icon_button(
+            AppKit.NSMakeRect(326, 7, 20, 20),
+            "xmark",
+            "✕",
+            "skipUpdateVersion:",
+            self,
+            tip=t("update_skip_tip"),
+            size=10,
+        )
+        self.update_close_btn.setContentTintColor_(
+            AppKit.NSColor.secondaryLabelColor()
+        )
+        self.update_banner.addSubview_(self.update_close_btn)
+        _pointer_cursor(self.update_close_btn, self)
+
+        self.update_info = None
+        self.update_stage = "idle"
+        self._checking = False
+        self._downloaded = 0
+        self._downloaded_path = ""
+
+    def _set_banner_visible(self, visible):
+        # isHidden — метод без аргументов (не property и не isHidden_).
+        if bool(self.update_banner.isHidden()) == (not visible):
+            return
+        if visible:
+            self.update_banner.setHidden_(False)
+            self.content.setFrame_(AppKit.NSMakeRect(0, BANNER_H, POPOVER_W, POPOVER_H))
+            size = AppKit.NSMakeSize(POPOVER_W, POPOVER_H + BANNER_H)
+        else:
+            self.update_banner.setHidden_(True)
+            self.content.setFrame_(AppKit.NSMakeRect(0, 0, POPOVER_W, POPOVER_H))
+            size = AppKit.NSMakeSize(POPOVER_W, POPOVER_H)
+        self.vc.setPreferredContentSize_(size)
+        self.vc.view().setFrame_(AppKit.NSMakeRect(0, 0, size.width, size.height))
+        # Если поповер уже открыт, preferredContentSize сам его не растягивает —
+        # размер надо задать явно, иначе баннер нарисуется за границей.
+        try:
+            if self.popover.isShown():
+                self.popover.setContentSize_(size)
+        except (AttributeError, objc.error):
+            pass
+
+    def _pending_update(self):
+        """Версия, о которой стоит сообщать: новее текущей и не пропущена."""
+        info = self.update_info
+        if not info or not info.get("version"):
+            return None
+        if info.get("skipped") == info["version"]:
+            return None
+        if not updater.is_newer(info["version"], APP_VERSION):
+            return None
+        return info
+
+    def _render_update_banner(self):
+        pending = self._pending_update()
+        if pending is None or self.update_stage == "idle":
+            self._set_banner_visible(False)
+            self._sync_update_menu(None)
+            return
+        version = pending["version"]
+        stage = self.update_stage
+        if stage == "available":
+            text = t("update_banner", v=version)
+            action = t("update_install")
+        elif stage == "downloading":
+            total = int(pending.get("size") or 0)
+            pct = int(self._downloaded * 100 / total) if total else 0
+            text = t("update_downloading", p=pct)
+            action = ""
+        elif stage == "ready":
+            text = t("update_ready")
+            action = (
+                t("update_restart")
+                if updater.can_self_update()
+                else t("update_open_dmg")
+            )
+        elif stage == "installing":
+            text = t("update_installing")
+            action = ""
+        else:
+            text = t("update_failed")
+            action = t("update_retry")
+        self.update_label.setStringValue_(text)
+        self.update_label.setToolTip_(text)
+        self.update_action_btn.setTitle_(action)
+        self.update_action_btn.setHidden_(not action)
+        self.update_close_btn.setHidden_(stage == "installing")
+        self._set_banner_visible(True)
+        self._sync_update_menu(pending)
+
+    def _sync_update_menu(self, pending):
+        """Пункт меню: заголовок либо приглашает, либо сообщает о версии."""
+        try:
+            title = (
+                t("menu_update_available", v=pending["version"])
+                if pending
+                else t("menu_check_updates")
+            )
+            self.check_updates_item.setTitle_(title)
+        except (AttributeError, objc.error):
+            pass
+
+    def _update_auto_check(self):
+        if not load_update_auto():
+            return
+        state = load_update_state()
+        if time.time() - state["last_check"] < UPDATE_CHECK_INTERVAL:
+            return
+        self.start_update_check()
+
+    def start_update_check(self, sender=None):
+        if self._checking or self.update_stage in ("downloading", "installing"):
+            return
+        self._checking = True
+        self._update_settings_status(t("update_checking"))
+        threading.Thread(target=self._check_worker, daemon=True).start()
+
+    def _check_worker(self):
+        result = updater.check_for_update(APP_VERSION)
+        if result.get("status") == "update":
+            save_update_state(
+                last_check=time.time(),
+                version=result["version"],
+                url=result.get("url", ""),
+                name=result.get("name", ""),
+                size=result.get("size", 0),
+                sha256=result.get("sha256", ""),
+            )
+        elif result.get("status") == "current":
+            save_update_state(last_check=time.time())
+        self.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "applyUpdateCheck:", dict(result), False
+        )
+
+    def _busy(self):
+        """Идёт скачивание/установка — фоновая проверка не имеет права
+        перебивать состояние (иначе она сбросит прогресс в idle)."""
+        return self.update_stage in ("downloading", "ready", "installing")
+
+    def applyUpdateCheck_(self, payload):
+        payload = dict(payload)
+        self._checking = False
+        status = payload.get("status")
+        if status == "update":
+            state = load_update_state()
+            info = {
+                "version": payload.get("version", ""),
+                "url": payload.get("url", ""),
+                "name": payload.get("name", ""),
+                "size": payload.get("size", 0),
+                "sha256": payload.get("sha256", ""),
+                "skipped": state["skipped"],
+                "last_check": state["last_check"],
+            }
+            if not self._busy():
+                self.update_info = info
+                self.update_stage = "available"
+            self._update_settings_status(
+                t("update_available", v=payload.get("version", ""))
+            )
+        elif status == "current":
+            if not self._busy():
+                self.update_info = None
+                self.update_stage = "idle"
+            self._update_settings_status(t("update_up_to_date"))
+        else:
+            if not self._busy():
+                self.update_stage = "idle"
+            self._update_settings_status(t("update_network_error"))
+        self._render_update_banner()
+
+    def updateAction_(self, sender):
+        pending = self._pending_update()
+        if pending is None:
+            return
+        if self.update_stage == "available":
+            self._start_download()
+        elif self.update_stage == "ready":
+            self._start_install(pending)
+        elif self.update_stage == "failed":
+            self._start_download()
+
+    def _start_download(self):
+        pending = self._pending_update()
+        if pending is None or not pending["url"]:
+            return
+        self.update_stage = "downloading"
+        self._downloaded = 0
+        self._render_update_banner()
+        threading.Thread(
+            target=self._download_worker,
+            args=(pending,),
+            daemon=True,
+        ).start()
+
+    def _download_worker(self, info):
+        dest = updates_dir() / (info["name"] or f"TranslateBar-{info['version']}.dmg")
+
+        def progress(done, total):
+            self._downloaded = done
+            self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                "applyDownloadProgress:", {"done": done, "total": total}, False
+            )
+
+        try:
+            path = updater.download_update(
+                info["url"],
+                dest,
+                info["sha256"],
+                info["size"],
+                progress=progress,
+            )
+            payload = {"ok": True, "path": str(path), "version": info["version"]}
+        except updater.DownloadCancelled:
+            payload = {"ok": False, "cancelled": True}
+        except Exception as exc:
+            payload = {"ok": False, "error": str(exc)}
+        self.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "applyDownloadResult:", payload, False
+        )
+
+    def applyDownloadProgress_(self, payload):
+        if self.update_stage != "downloading":
+            return
+        payload = dict(payload)
+        self._downloaded = int(payload.get("done") or 0)
+        self._render_update_banner()
+
+    def applyDownloadResult_(self, payload):
+        payload = dict(payload)
+        if payload.get("cancelled"):
+            self.update_stage = "available"
+            self._render_update_banner()
+            return
+        if not payload.get("ok"):
+            self.update_stage = "failed"
+            self._update_settings_status(t("update_failed"))
+            self._render_update_banner()
+            return
+        self.update_stage = "ready"
+        self._downloaded_path = payload.get("path", "")
+        self._update_settings_status(t("update_ready"))
+        self._render_update_banner()
+
+    def _start_install(self, pending):
+        dmg = Path(getattr(self, "_downloaded_path", "") or "")
+        bundle = updater.app_bundle_path()
+        if not dmg.exists():
+            self.update_stage = "failed"
+            self._render_update_banner()
+            return
+        if not updater.can_self_update(bundle):
+            # Запуск из исходников или бандл вне /Applications: отдаём образ
+            # Finder'у, дальше пользователь ставит сам.
+            subprocess.run(["open", str(dmg)], check=False)
+            return
+        self.update_stage = "installing"
+        self._render_update_banner()
+        threading.Thread(
+            target=self._install_worker, args=(dmg, bundle, pending), daemon=True
+        ).start()
+
+    def _install_worker(self, dmg, bundle, pending):
+        # hdiutil attach занимает пару секунд — в потоке, чтобы не морозить UI.
+        validated = updater.validate_dmg(dmg, pending["version"])
+        if not validated.get("ok"):
+            self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                "applyInstallFailure:", {"error": validated.get("error", "")}, False
+            )
+            return
+        try:
+            updater.install_update(
+                validated["mount"], validated["app"], bundle, dmg
+            )
+        except OSError:
+            updater.unmount(validated["mount"])
+            self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                "applyInstallFailure:", {"error": "spawn"}, False
+            )
+            return
+        # Helper ждёт нашего выхода — завершаем приложение.
+        self.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "quitForUpdate:", None, False
+        )
+
+    def applyInstallFailure_(self, payload):
+        self.update_stage = "failed"
+        self._update_settings_status(t("update_invalid_image"))
+        self._render_update_banner()
+
+    def quitForUpdate_(self, _):
+        AppKit.NSApplication.sharedApplication().terminate_(None)
+
+    def skipUpdateVersion_(self, sender):
+        pending = self._pending_update()
+        if pending is None:
+            return
+        save_update_state(
+            last_check=pending.get("last_check") or time.time(),
+            version=pending["version"],
+            url=pending.get("url", ""),
+            name=pending.get("name", ""),
+            size=pending.get("size", 0),
+            sha256=pending.get("sha256", ""),
+            skipped=pending["version"],
+        )
+        self.update_stage = "idle"
+        self._set_banner_visible(False)
+        self._sync_update_menu(None)
+
+    def checkUpdatesFromMenu_(self, sender):
+        self.openSettings_(sender)
+        self.start_update_check()
+
+    def updateAutoToggled_(self, sender):
+        enabled = sender.state() == AppKit.NSOnState
+        save_update_auto(enabled)
+        if enabled:
+            self.start_update_check()
+        else:
+            self.update_stage = "idle"
+            self._set_banner_visible(False)
+            self._sync_update_menu(None)
+            self._update_settings_status("")
 
     def _set_history_toggle_icon(self):
         img = _symbol("clock", 16)
@@ -840,6 +1294,46 @@ class AppDelegate(NSObject):
         c.addSubview_(self.history_mode_popup)
         _pointer_cursor(self.history_mode_popup, self)
 
+        self.update_auto_box = AppKit.NSButton.alloc().initWithFrame_(
+            AppKit.NSMakeRect(20, 120, 280, 22)
+        )
+        self.update_auto_box.setButtonType_(AppKit.NSSwitchButton)
+        self.update_auto_box.setTitle_(t("update_auto"))
+        self.update_auto_box.setTarget_(self)
+        self.update_auto_box.setAction_("updateAutoToggled:")
+        c.addSubview_(self.update_auto_box)
+        _pointer_cursor(self.update_auto_box, self)
+
+        c.addSubview_(
+            _secondary_label(
+                AppKit.NSMakeRect(20, 102, 280, 18), t("update_auto_hint")
+            )
+        )
+
+        # Кнопка на всю ширину блока: «Проверить обновления…» во французском
+        # занимает ~165pt, в узкое поле не влезала.
+        self.update_check_btn = AppKit.NSButton.alloc().initWithFrame_(
+            AppKit.NSMakeRect(18, 72, 284, 24)
+        )
+        self.update_check_btn.setTitle_(t("menu_check_updates"))
+        self.update_check_btn.setBordered_(True)
+        self.update_check_btn.setBezelStyle_(AppKit.NSRoundedBezelStyle)
+        self.update_check_btn.setFont_(AppKit.NSFont.systemFontOfSize_(12))
+        self.update_check_btn.setTarget_(self)
+        self.update_check_btn.setAction_("startUpdateCheck:")
+        c.addSubview_(self.update_check_btn)
+        _pointer_cursor(self.update_check_btn, self)
+
+        # Статус отдельной строкой под кнопкой: «Готово к установке» в немецком
+        # и японском не помещается в поле справа от кнопки.
+        self.update_status_label = _secondary_label(
+            AppKit.NSMakeRect(20, 48, 280, 18), ""
+        )
+        self.update_status_label.setLineBreakMode_(
+            AppKit.NSLineBreakByTruncatingTail
+        )
+        c.addSubview_(self.update_status_label)
+
         divider = AppKit.NSBox.alloc().initWithFrame_(
             AppKit.NSMakeRect(20, 44, SETTINGS_W - 40, 1)
         )
@@ -965,12 +1459,45 @@ class AppDelegate(NSObject):
             mode = HISTORY_MODE_DEFAULT
         self.history_mode_popup.selectItemAtIndex_(HISTORY_MODES.index(mode))
 
+    def _update_settings_status(self, text):
+        try:
+            self.update_status_label.setStringValue_(text)
+            self.update_status_label.setToolTip_(text)
+            self.update_check_btn.setEnabled_(
+                not self._checking
+                and self.update_stage not in ("downloading", "installing")
+            )
+        except (AttributeError, objc.error):
+            pass
+
+    def _restore_update_auto(self):
+        self.update_auto_box.setState_(
+            AppKit.NSOnState if load_update_auto() else AppKit.NSOffState
+        )
+
+    def _load_cached_update(self):
+        """Поднимает результат прошлой проверки, чтобы баннер был сразу."""
+        state = load_update_state()
+        if not state["version"] or not state["url"]:
+            return
+        self.update_info = {
+            "version": state["version"],
+            "url": state["url"],
+            "name": state["name"],
+            "size": state["size"],
+            "sha256": state["sha256"],
+            "skipped": state["skipped"],
+        }
+        if self._pending_update() is not None:
+            self.update_stage = "available"
+
     def openSettings_(self, sender):
         self.autostart_box.setState_(
             AppKit.NSOnState if is_autostart_enabled() else AppKit.NSOffState
         )
         self._restore_ui_lang()
         self._restore_history_mode()
+        self._restore_update_auto()
         # Popover lives at NSStatusWindowLevel (25); plain floating (3) would open behind it.
         level = AppKit.NSFloatingWindowLevel
         try:
