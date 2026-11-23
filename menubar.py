@@ -50,7 +50,7 @@ from version import APP_VERSION
 import updater
 
 POPOVER_W, POPOVER_H = 360, 468
-SETTINGS_W, SETTINGS_H = 320, 340
+SETTINGS_W, SETTINGS_H = 320, 310
 BANNER_H = 34
 DEBOUNCE_INTERVAL = 0.6
 FADE_DURATION = 0.1
@@ -745,9 +745,12 @@ class AppDelegate(NSObject):
         line.layer().setBackgroundColor_(AppKit.NSColor.separatorColor().CGColor())
         self.update_banner.addSubview_(line)
 
-        self.update_label = _secondary_label(
-            AppKit.NSMakeRect(12, 9, 198, 18), ""
-        )
+        # Подпись и кнопка сидят на одной базовой линии: 12pt, вертикальные
+        # центры совпадают (18/2+8 == 22/2+6). Раньше подпись была 11pt в
+        # рамке h=18, а кнопка 12pt в h=22 — «Установить» съезжала вниз.
+        self.update_label = _label(AppKit.NSMakeRect(12, 8, 198, 18), "")
+        self.update_label.setFont_(AppKit.NSFont.systemFontOfSize_(12))
+        self.update_label.setTextColor_(AppKit.NSColor.secondaryLabelColor())
         self.update_label.setLineBreakMode_(AppKit.NSLineBreakByTruncatingTail)
         self.update_banner.addSubview_(self.update_label)
 
@@ -855,6 +858,13 @@ class AppDelegate(NSObject):
         self.update_action_btn.setTitle_(action)
         self.update_action_btn.setHidden_(not action)
         self.update_close_btn.setHidden_(stage == "installing")
+        # Без кнопки подпись может занять её место: французское
+        # «Téléchargement depuis GitHub… 42 %» в 198pt не помещается.
+        self.update_label.setFrame_(
+            AppKit.NSMakeRect(12, 8, 304, 18)
+            if not action
+            else AppKit.NSMakeRect(12, 8, 198, 18)
+        )
         self._set_banner_visible(True)
         self._sync_update_menu(pending)
 
@@ -876,9 +886,9 @@ class AppDelegate(NSObject):
         state = load_update_state()
         if time.time() - state["last_check"] < UPDATE_CHECK_INTERVAL:
             return
-        self.start_update_check()
+        self.startUpdateCheck_(None)
 
-    def start_update_check(self, sender=None):
+    def startUpdateCheck_(self, sender=None):
         if self._checking or self.update_stage in ("downloading", "installing"):
             return
         self._checking = True
@@ -1080,13 +1090,13 @@ class AppDelegate(NSObject):
 
     def checkUpdatesFromMenu_(self, sender):
         self.openSettings_(sender)
-        self.start_update_check()
+        self.startUpdateCheck_(None)
 
     def updateAutoToggled_(self, sender):
         enabled = sender.state() == AppKit.NSOnState
         save_update_auto(enabled)
         if enabled:
-            self.start_update_check()
+            self.startUpdateCheck_(None)
         else:
             self.update_stage = "idle"
             self._set_banner_visible(False)
@@ -1295,7 +1305,7 @@ class AppDelegate(NSObject):
         _pointer_cursor(self.history_mode_popup, self)
 
         self.update_auto_box = AppKit.NSButton.alloc().initWithFrame_(
-            AppKit.NSMakeRect(20, 120, 280, 22)
+            AppKit.NSMakeRect(20, 92, 280, 22)
         )
         self.update_auto_box.setButtonType_(AppKit.NSSwitchButton)
         self.update_auto_box.setTitle_(t("update_auto"))
@@ -1304,35 +1314,24 @@ class AppDelegate(NSObject):
         c.addSubview_(self.update_auto_box)
         _pointer_cursor(self.update_auto_box, self)
 
-        c.addSubview_(
-            _secondary_label(
-                AppKit.NSMakeRect(20, 102, 280, 18), t("update_auto_hint")
-            )
-        )
-
+        # Статус проверки показывается в заголовке самой кнопки: отдельная
+        # строка под ней дублировала информацию и нагружала интерфейс.
         # Кнопка на всю ширину блока: «Проверить обновления…» во французском
         # занимает ~165pt, в узкое поле не влезала.
         self.update_check_btn = AppKit.NSButton.alloc().initWithFrame_(
-            AppKit.NSMakeRect(18, 72, 284, 24)
+            AppKit.NSMakeRect(18, 56, 284, 24)
         )
         self.update_check_btn.setTitle_(t("menu_check_updates"))
         self.update_check_btn.setBordered_(True)
         self.update_check_btn.setBezelStyle_(AppKit.NSRoundedBezelStyle)
         self.update_check_btn.setFont_(AppKit.NSFont.systemFontOfSize_(12))
         self.update_check_btn.setTarget_(self)
+        # Имя селектора должно совпадать с методом: PyObjC ищет
+        # startUpdateCheck_, а не start_update_check. Из-за расхождения
+        # клик по кнопке молча игнорировался.
         self.update_check_btn.setAction_("startUpdateCheck:")
         c.addSubview_(self.update_check_btn)
         _pointer_cursor(self.update_check_btn, self)
-
-        # Статус отдельной строкой под кнопкой: «Готово к установке» в немецком
-        # и японском не помещается в поле справа от кнопки.
-        self.update_status_label = _secondary_label(
-            AppKit.NSMakeRect(20, 48, 280, 18), ""
-        )
-        self.update_status_label.setLineBreakMode_(
-            AppKit.NSLineBreakByTruncatingTail
-        )
-        c.addSubview_(self.update_status_label)
 
         divider = AppKit.NSBox.alloc().initWithFrame_(
             AppKit.NSMakeRect(20, 44, SETTINGS_W - 40, 1)
@@ -1460,9 +1459,10 @@ class AppDelegate(NSObject):
         self.history_mode_popup.selectItemAtIndex_(HISTORY_MODES.index(mode))
 
     def _update_settings_status(self, text):
+        """Пишет состояние проверки в заголовок кнопки (отдельной строки нет)."""
         try:
-            self.update_status_label.setStringValue_(text)
-            self.update_status_label.setToolTip_(text)
+            self.update_check_btn.setTitle_(text or t("menu_check_updates"))
+            self.update_check_btn.setToolTip_(text or "")
             self.update_check_btn.setEnabled_(
                 not self._checking
                 and self.update_stage not in ("downloading", "installing")
@@ -1498,6 +1498,8 @@ class AppDelegate(NSObject):
         self._restore_ui_lang()
         self._restore_history_mode()
         self._restore_update_auto()
+        # Кнопка не должна показывать статус прошлой проверки при открытии.
+        self._update_settings_status("")
         # Popover lives at NSStatusWindowLevel (25); plain floating (3) would open behind it.
         level = AppKit.NSFloatingWindowLevel
         try:

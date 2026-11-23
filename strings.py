@@ -343,14 +343,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "ja": "自動的にアップデートを確認",
         "zh-Hans": "自动检查更新",
     },
-    "update_auto_hint": {
-        "ru": "Не чаще раза в 24 часа · GitHub",
-        "en": "At most once every 24 hours · GitHub",
-        "de": "Höchstens alle 24 Stunden · GitHub",
-        "fr": "Au maximum une fois par 24 heures · GitHub",
-        "ja": "24時間に1回まで · GitHub",
-        "zh-Hans": "每 24 小时最多一次 · GitHub",
-    },
     "update_checking": {
         "ru": "Проверка…",
         "en": "Checking…",
@@ -392,12 +384,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "zh-Hans": "安装",
     },
     "update_downloading": {
-        "ru": "Скачивание… {p}%",
-        "en": "Downloading… {p}%",
-        "de": "Laden… {p} %",
-        "fr": "Téléchargement… {p} %",
-        "ja": "ダウンロード中… {p}%",
-        "zh-Hans": "下载中… {p}%",
+        "ru": "Скачивание с GitHub… {p}%",
+        "en": "Downloading from GitHub… {p}%",
+        "de": "Laden von GitHub… {p} %",
+        "fr": "Téléchargement depuis GitHub… {p} %",
+        "ja": "GitHub からダウンロード中… {p}%",
+        "zh-Hans": "正在从 GitHub 下载… {p}%",
     },
     "update_ready": {
         "ru": "Готово к установке",
