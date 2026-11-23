@@ -43,3 +43,14 @@ def history_path() -> Path:
 
 def settings_path() -> Path:
     return data_dir() / "settings.json"
+
+
+def updates_dir() -> Path:
+    """Скачанные образы обновлений.
+
+    Не ~/Downloads: папка под TCC, приложение получило бы системный запрос
+    доступа на первом скачивании.
+    """
+    target = data_dir() / "updates"
+    target.mkdir(parents=True, exist_ok=True)
+    return target

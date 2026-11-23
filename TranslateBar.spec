@@ -11,7 +11,14 @@ universal2 (нужен universal2-Python от python.org, см. README):
 """
 
 import os
+import sys
+
 from PyInstaller.utils.hooks import collect_data_files
+
+# Версия живёт в version.py, чтобы не дублироваться с menubar.py.
+if SPECPATH not in sys.path:
+    sys.path.insert(0, SPECPATH)
+from version import APP_VERSION  # noqa: E402
 
 # PyInstaller does not cross-compile: target_arch only validates/selects the
 # architecture slices of already-built binaries. Building universal2 or x86_64
@@ -26,7 +33,7 @@ datas = collect_data_files("langdetect")
 
 a = Analysis(
     ["menubar.py"],
-    pathex=[],
+    pathex=[SPECPATH],
     binaries=[],
     datas=datas,
     hiddenimports=["ServiceManagement"],
@@ -71,8 +78,8 @@ app = BUNDLE(
     bundle_identifier="com.translatebar.menubar",
     info_plist={
         "CFBundleDisplayName": "Translate Bar",
-        "CFBundleShortVersionString": "1.2.0",
-        "CFBundleVersion": "1.2.0",
+        "CFBundleShortVersionString": APP_VERSION,
+        "CFBundleVersion": APP_VERSION,
         "LSUIElement": True,
         "NSHighResolutionCapable": True,
         "LSMinimumSystemVersion": "13.0",
