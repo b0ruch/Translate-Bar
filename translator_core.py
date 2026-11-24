@@ -91,6 +91,11 @@ MIN_DETECT_CONFIDENCE = 0.85
 
 CYRILLIC_LANGS = {"ru", "uk", "be", "bg", "mk", "sr", "kk", "ky", "tg", "mn"}
 
+# Языки с двумя формами числа: 1 → единственное, всё остальное (включая 21)
+# → множественное. Остальные (кроме ja/zh-Hans, у них формы совпадают) падают
+# в `_plural()` с русским правилом 1 / 2–4 / 5+, которое верно и для украинского.
+SINGULAR_PLURAL_LANGS = {"en", "de", "fr", "es", "it", "pt"}
+
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
 
 HISTORY_FILE = history_path()
@@ -428,7 +433,7 @@ def _plural(n: int, forms: tuple[str, str, str]) -> str:
 def _unit(n: int, forms: tuple[str, str, str], lang: str) -> str:
     if lang in ("ja", "zh-Hans"):
         return forms[0]
-    if lang in ("en", "de", "fr"):
+    if lang in SINGULAR_PLURAL_LANGS:
         return forms[0] if n == 1 else forms[1]
     return _plural(n, forms)
 

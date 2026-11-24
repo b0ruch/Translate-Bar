@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # pyright: reportAttributeAccessIssue=false
-"""Строки интерфейса Translate Bar (RU/EN/DE/FR/JA/ZH-Hans)."""
+"""Строки интерфейса Translate Bar (RU/EN/DE/FR/JA/ZH-Hans/ES/UK)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from paths import settings_path
 
 SETTINGS_FILE_FALLBACK = settings_path()
 
-SUPPORTED_UI_LANGS = ("ru", "en", "de", "fr", "ja", "zh-Hans")
+SUPPORTED_UI_LANGS = ("ru", "en", "de", "fr", "ja", "zh-Hans", "es", "uk")
 
 UI_LANG_NATIVE = {
     "ru": "Русский",
@@ -19,6 +19,8 @@ UI_LANG_NATIVE = {
     "fr": "Français",
     "ja": "日本語",
     "zh-Hans": "简体中文",
+    "es": "Español",
+    "uk": "Українська",
 }
 
 
@@ -38,6 +40,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ouvrir le traducteur",
         "ja": "翻訳を開く",
         "zh-Hans": "打开翻译",
+        "es": "Abrir el traductor",
+        "uk": "Відкрити перекладач",
     },
     "menu_settings": {
         "ru": "Настройки...",
@@ -46,6 +50,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Réglages...",
         "ja": "設定...",
         "zh-Hans": "设置...",
+        "es": "Ajustes...",
+        "uk": "Налаштування...",
     },
     "menu_quit": {
         "ru": "Выйти",
@@ -54,6 +60,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Quitter",
         "ja": "終了",
         "zh-Hans": "退出",
+        "es": "Salir",
+        "uk": "Вийти",
     },
     "appmenu_quit": {
         "ru": "Выйти из Translate Bar",
@@ -62,6 +70,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Quitter Translate Bar",
         "ja": "Translate Bar を終了",
         "zh-Hans": "退出 Translate Bar",
+        "es": "Salir de Translate Bar",
+        "uk": "Вийти з Translate Bar",
     },
     "menu_edit": {
         "ru": "Правка",
@@ -70,6 +80,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Édition",
         "ja": "編集",
         "zh-Hans": "编辑",
+        "es": "Edición",
+        "uk": "Редагування",
     },
     "edit_undo": {
         "ru": "Отменить",
@@ -78,6 +90,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Annuler",
         "ja": "元に戻す",
         "zh-Hans": "撤销",
+        "es": "Deshacer",
+        "uk": "Скасувати",
     },
     "edit_redo": {
         "ru": "Повторить",
@@ -86,6 +100,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Rétablir",
         "ja": "やり直す",
         "zh-Hans": "重做",
+        "es": "Rehacer",
+        "uk": "Повторити",
     },
     "edit_cut": {
         "ru": "Вырезать",
@@ -94,6 +110,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Couper",
         "ja": "切り取り",
         "zh-Hans": "剪切",
+        "es": "Cortar",
+        "uk": "Вирізати",
     },
     "edit_copy": {
         "ru": "Копировать",
@@ -102,6 +120,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Copier",
         "ja": "コピー",
         "zh-Hans": "复制",
+        "es": "Copiar",
+        "uk": "Копіювати",
     },
     "edit_paste": {
         "ru": "Вставить",
@@ -110,6 +130,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Coller",
         "ja": "貼り付け",
         "zh-Hans": "粘贴",
+        "es": "Pegar",
+        "uk": "Вставити",
     },
     "edit_select_all": {
         "ru": "Выбрать всё",
@@ -118,6 +140,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Tout sélectionner",
         "ja": "すべて選択",
         "zh-Hans": "全选",
+        "es": "Seleccionar todo",
+        "uk": "Вибрати все",
     },
     "tip_swap": {
         "ru": "Поменять направление",
@@ -126,6 +150,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Inverser les langues",
         "ja": "言語を入れ替え",
         "zh-Hans": "交换语言",
+        "es": "Cambiar idiomas",
+        "uk": "Поміняти мови",
     },
     "tip_settings": {
         "ru": "Настройки",
@@ -134,6 +160,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Réglages",
         "ja": "設定",
         "zh-Hans": "设置",
+        "es": "Ajustes",
+        "uk": "Налаштування",
     },
     "tip_history_expand": {
         "ru": "Развернуть историю",
@@ -142,6 +170,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Afficher l'historique",
         "ja": "履歴を展開",
         "zh-Hans": "展开历史记录",
+        "es": "Mostrar historial",
+        "uk": "Розгорнути історію",
     },
     "tip_history_collapse": {
         "ru": "Свернуть историю",
@@ -150,6 +180,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Masquer l'historique",
         "ja": "履歴を折りたたむ",
         "zh-Hans": "收起历史记录",
+        "es": "Ocultar historial",
+        "uk": "Згорнути історію",
     },
     "history_mode": {
         "ru": "История",
@@ -158,6 +190,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Historique",
         "ja": "履歴",
         "zh-Hans": "历史记录",
+        "es": "Historial",
+        "uk": "Історія",
     },
     "history_mode_inline": {
         "ru": "Встроенная",
@@ -166,6 +200,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Intégré",
         "ja": "インライン",
         "zh-Hans": "内嵌",
+        "es": "Integrado",
+        "uk": "Вбудована",
     },
     "history_mode_screen": {
         "ru": "Отдельный экран",
@@ -174,6 +210,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Plein écran",
         "ja": "全画面",
         "zh-Hans": "整页视图",
+        "es": "Pantalla completa",
+        "uk": "Окремий екран",
     },
     "tip_copy": {
         "ru": "Скопировать перевод",
@@ -182,6 +220,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Copier la traduction",
         "ja": "翻訳をコピー",
         "zh-Hans": "复制译文",
+        "es": "Copiar la traducción",
+        "uk": "Скопіювати переклад",
     },
     "tip_clear_text": {
         "ru": "Очистить текст",
@@ -190,6 +230,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Effacer le texte",
         "ja": "テキストをクリア",
         "zh-Hans": "清空文本",
+        "es": "Borrar el texto",
+        "uk": "Очистити текст",
     },
     "placeholder": {
         "ru": "Введите текст…",
@@ -198,6 +240,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Saisissez du texte…",
         "ja": "テキストを入力…",
         "zh-Hans": "输入文本…",
+        "es": "Escribe el texto…",
+        "uk": "Введіть текст…",
     },
     "recent": {
         "ru": "Недавние",
@@ -206,6 +250,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Récents",
         "ja": "最近",
         "zh-Hans": "最近",
+        "es": "Recientes",
+        "uk": "Нещодавні",
     },
     "clear": {
         "ru": "Очистить",
@@ -214,6 +260,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Effacer",
         "ja": "クリア",
         "zh-Hans": "清除",
+        "es": "Borrar",
+        "uk": "Очистити",
     },
     "history_empty": {
         "ru": "История пуста",
@@ -222,6 +270,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Historique vide",
         "ja": "履歴はまだありません",
         "zh-Hans": "暂无历史记录",
+        "es": "Aún no hay historial",
+        "uk": "Історія порожня",
     },
     "copied": {
         "ru": "Скопировано ✓",
@@ -230,6 +280,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Copié ✓",
         "ja": "コピーしました ✓",
         "zh-Hans": "已复制 ✓",
+        "es": "Copiado ✓",
+        "uk": "Скопійовано ✓",
     },
     "translating": {
         "ru": "Перевожу…",
@@ -238,6 +290,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Traduction…",
         "ja": "翻訳中…",
         "zh-Hans": "翻译中…",
+        "es": "Traduciendo…",
+        "uk": "Перекладаю…",
     },
     "error_prefix": {
         "ru": "Ошибка",
@@ -246,6 +300,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Erreur",
         "ja": "エラー",
         "zh-Hans": "错误",
+        "es": "Error",
+        "uk": "Помилка",
     },
     "no_connection": {
         "ru": "Нет связи с сервисами перевода (Google перегружен, MyMemory недоступен). Подождите минуту и попробуйте снова.",
@@ -254,6 +310,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Services de traduction inaccessibles (Google est surchargé, MyMemory est indisponible). Patientez une minute et réessayez.",
         "ja": "翻訳サービスに接続できません（Google が混雑しているか、MyMemory が利用できません）。1分ほど待ってから再試行してください。",
         "zh-Hans": "无法连接翻译服务（Google 繁忙，MyMemory 不可用）。请稍候一分钟后重试。",
+        "es": "Servicios no disponibles. Inténtalo en un minuto.",
+        "uk": "Сервіси недоступні. Спробуйте за хвилину.",
     },
     "earlier": {
         "ru": "ранее",
@@ -262,6 +320,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "auparavant",
         "ja": "以前",
         "zh-Hans": "更早",
+        "es": "antes",
+        "uk": "раніше",
     },
     "settings_title": {
         "ru": "Настройки",
@@ -270,6 +330,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Réglages",
         "ja": "設定",
         "zh-Hans": "设置",
+        "es": "Ajustes",
+        "uk": "Налаштування",
     },
     "autostart": {
         "ru": "Запускать при входе в macOS",
@@ -278,6 +340,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ouvrir à la connexion",
         "ja": "ログイン時に起動",
         "zh-Hans": "登录时启动",
+        "es": "Abrir al iniciar sesión",
+        "uk": "Запускати при вході в macOS",
     },
     "autostart_hint": {
         "ru": "Иконка появится в menu bar после входа",
@@ -286,6 +350,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "L'icône apparaîtra dans la barre des menus après la connexion",
         "ja": "ログイン後にメニューバーにアイコンが表示されます",
         "zh-Hans": "登录后图标将显示在菜单栏中",
+        "es": "El icono aparecerá en la barra de menús",
+        "uk": "Іконка зʼявиться в рядку меню після входу",
     },
     "ui_language": {
         "ru": "Язык интерфейса",
@@ -294,6 +360,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Langue de l'interface",
         "ja": "表示言語",
         "zh-Hans": "界面语言",
+        "es": "Idioma de la interfaz",
+        "uk": "Мова інтерфейсу",
     },
     "ui_lang_system": {
         "ru": "Система",
@@ -302,6 +370,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Système",
         "ja": "システム",
         "zh-Hans": "系统",
+        "es": "Sistema",
+        "uk": "Система",
     },
     "ui_lang_note": {
         "ru": "Применится после перезапуска",
@@ -310,6 +380,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Appliqué après redémarrage",
         "ja": "再起動後に適用されます",
         "zh-Hans": "重启后生效",
+        "es": "Se aplica tras reiniciar",
+        "uk": "Застосується після перезапуску",
     },
     "version_line": {
         "ru": "Translate Bar · версия {v}",
@@ -318,6 +390,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Translate Bar · version {v}",
         "ja": "Translate Bar · バージョン {v}",
         "zh-Hans": "Translate Bar · 版本 {v}",
+        "es": "Translate Bar · versión {v}",
+        "uk": "Translate Bar · версія {v}",
     },
     "menu_check_updates": {
         "ru": "Проверить обновления…",
@@ -326,6 +400,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Rechercher les mises à jour…",
         "ja": "アップデートを確認…",
         "zh-Hans": "检查更新…",
+        "es": "Buscar actualizaciones…",
+        "uk": "Перевірити оновлення…",
     },
     "menu_update_available": {
         "ru": "Доступно обновление {v}…",
@@ -334,6 +410,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Mise à jour {v} disponible…",
         "ja": "アップデート {v} があります…",
         "zh-Hans": "有可用更新 {v}…",
+        "es": "Actualización {v} disponible…",
+        "uk": "Доступне оновлення {v}…",
     },
     "update_auto": {
         "ru": "Проверять обновления автоматически",
@@ -342,6 +420,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Rechercher les mises à jour automatiquement",
         "ja": "自動的にアップデートを確認",
         "zh-Hans": "自动检查更新",
+        "es": "Buscar actualizaciones automáticamente",
+        "uk": "Перевіряти оновлення автоматично",
     },
     "update_checking": {
         "ru": "Проверка…",
@@ -350,6 +430,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Vérification…",
         "ja": "確認中…",
         "zh-Hans": "检查中…",
+        "es": "Comprobando…",
+        "uk": "Перевірка…",
     },
     "update_up_to_date": {
         "ru": "Актуально",
@@ -358,6 +440,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "À jour",
         "ja": "最新です",
         "zh-Hans": "已是最新",
+        "es": "Al día",
+        "uk": "Актуально",
     },
     "update_available": {
         "ru": "Есть {v}",
@@ -366,6 +450,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "{v} disponible",
         "ja": "{v} があります",
         "zh-Hans": "有 {v}",
+        "es": "{v} disponible",
+        "uk": "Є {v}",
     },
     "update_banner": {
         "ru": "Доступна версия {v}",
@@ -374,6 +460,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "La version {v} est disponible",
         "ja": "バージョン {v} があります",
         "zh-Hans": "有可用版本 {v}",
+        "es": "La versión {v} está disponible",
+        "uk": "Доступна версія {v}",
     },
     "update_install": {
         "ru": "Установить",
@@ -382,6 +470,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Installer",
         "ja": "インストール",
         "zh-Hans": "安装",
+        "es": "Instalar",
+        "uk": "Встановити",
     },
     "update_downloading": {
         "ru": "Скачивание с GitHub… {p}%",
@@ -390,6 +480,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Téléchargement depuis GitHub… {p} %",
         "ja": "GitHub からダウンロード中… {p}%",
         "zh-Hans": "正在从 GitHub 下载… {p}%",
+        "es": "Descargando de GitHub… {p} %",
+        "uk": "Завантаження з GitHub… {p} %",
     },
     "update_ready": {
         "ru": "Готово к установке",
@@ -398,6 +490,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Prêt à installer",
         "ja": "インストール準備完了",
         "zh-Hans": "可以安装",
+        "es": "Listo para instalar",
+        "uk": "Готово до встановлення",
     },
     "update_restart": {
         "ru": "Перезапустить",
@@ -406,6 +500,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Redémarrer",
         "ja": "再起動",
         "zh-Hans": "重新启动",
+        "es": "Reiniciar",
+        "uk": "Перезапустити",
     },
     "update_installing": {
         "ru": "Установка…",
@@ -414,6 +510,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Installation…",
         "ja": "インストール中…",
         "zh-Hans": "安装中…",
+        "es": "Instalando…",
+        "uk": "Встановлення…",
     },
     "update_failed": {
         "ru": "Ошибка загрузки",
@@ -422,6 +520,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Échec du téléchargement",
         "ja": "ダウンロード失敗",
         "zh-Hans": "下载失败",
+        "es": "Error de descarga",
+        "uk": "Помилка завантаження",
     },
     "update_retry": {
         "ru": "Повторить",
@@ -430,6 +530,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Réessayer",
         "ja": "再試行",
         "zh-Hans": "重试",
+        "es": "Reintentar",
+        "uk": "Повторити",
     },
     "update_network_error": {
         "ru": "Ошибка сети",
@@ -438,6 +540,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Erreur réseau",
         "ja": "ネットワークエラー",
         "zh-Hans": "网络错误",
+        "es": "Error de red",
+        "uk": "Помилка мережі",
     },
     "update_open_dmg": {
         "ru": "Открыть DMG",
@@ -446,6 +550,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ouvrir le DMG",
         "ja": "DMGを開く",
         "zh-Hans": "打开 DMG",
+        "es": "Abrir DMG",
+        "uk": "Відкрити DMG",
     },
     "update_skip_tip": {
         "ru": "Пропустить эту версию",
@@ -454,6 +560,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ignorer cette version",
         "ja": "このバージョンをスキップ",
         "zh-Hans": "跳过此版本",
+        "es": "Omitir esta versión",
+        "uk": "Пропустити цю версію",
     },
     "update_invalid_image": {
         "ru": "Некорректный образ",
@@ -462,6 +570,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Image non valide",
         "ja": "無効なイメージ",
         "zh-Hans": "映像无效",
+        "es": "Imagen no válida",
+        "uk": "Некоректний образ",
     },
     "autostart_error_title": {
         "ru": "Не удалось изменить автозапуск",
@@ -470,6 +580,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Impossible de modifier l'ouverture à la connexion",
         "ja": "ログイン項目を変更できませんでした",
         "zh-Hans": "无法更改登录启动项",
+        "es": "No se pudo cambiar el objeto de inicio",
+        "uk": "Не вдалося змінити автозапуск",
     },
     "autostart_denied": {
         "ru": "Не удалось добавить в объекты входа: {e}",
@@ -478,6 +590,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Impossible d'ajouter l'élément d'ouverture : {e}",
         "ja": "ログイン項目を追加できませんでした: {e}",
         "zh-Hans": "无法添加登录启动项：{e}",
+        "es": "No se pudo añadir el objeto de inicio: {e}",
+        "uk": "Не вдалося додати обʼєкт входу: {e}",
     },
     "autostart_approval": {
         "ru": "Подтвердите в Системных настройках → Основные → Объекты входа",
@@ -486,6 +600,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Validez dans Réglages Système → Général → Ouverture",
         "ja": "システム設定 → 一般 → ログイン項目 で許可してください",
         "zh-Hans": "请在系统设置 → 通用 → 登录项中确认",
+        "es": "Ajustes del Sistema → General → Ítems de inicio",
+        "uk": "Системні налаштування → Загальні → Обʼєкти входу",
     },
     "autostart_unsupported": {
         "ru": "Нужен macOS 13+ и модуль ServiceManagement",
@@ -494,6 +610,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Nécessite macOS 13+ et le module ServiceManagement",
         "ja": "macOS 13以降とServiceManagementモジュールが必要です",
         "zh-Hans": "需要 macOS 13 及以上和 ServiceManagement 模块",
+        "es": "Requiere macOS 13 o posterior y el módulo ServiceManagement",
+        "uk": "Потрібен macOS 13+ і модуль ServiceManagement",
     },
     "autostart_on": {
         "ru": "Автозапуск включён",
@@ -502,6 +620,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ouverture à la connexion activée",
         "ja": "ログイン時の起動を有効にしました",
         "zh-Hans": "已启用登录时启动",
+        "es": "Apertura al iniciar sesión activada",
+        "uk": "Автозапуск увімкнено",
     },
     "autostart_off": {
         "ru": "Автозапуск выключен",
@@ -510,6 +630,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Ouverture à la connexion désactivée",
         "ja": "ログイン時の起動を無効にしました",
         "zh-Hans": "已关闭登录时启动",
+        "es": "Apertura al iniciar sesión desactivada",
+        "uk": "Автозапуск вимкнено",
     },
     "already_running": {
         "ru": "Переводчик уже запущен (иконка в menu bar).",
@@ -518,6 +640,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "fr": "Le traducteur est déjà en cours d'exécution (icône de la barre des menus).",
         "ja": "翻訳はすでに実行中です（メニューバーのアイコン）。",
         "zh-Hans": "翻译器已在运行（菜单栏图标）。",
+        "es": "El traductor ya está en marcha (icono en la barra de menús).",
+        "uk": "Перекладач уже запущено (іконка в рядку меню).",
     },
 }
 
@@ -612,6 +736,36 @@ LANG_NAMES: dict[str, dict[str, str]] = {
         "zh": "中文",
         "ko": "韩语",
     },
+    "es": {
+        "auto": "Automático",
+        "en": "Inglés",
+        "ru": "Ruso",
+        "fr": "Francés",
+        "de": "Alemán",
+        "es": "Español",
+        "it": "Italiano",
+        "pt": "Portugués",
+        "pl": "Polaco",
+        "uk": "Ucraniano",
+        "ja": "Japonés",
+        "zh": "Chino",
+        "ko": "Coreano",
+    },
+    "uk": {
+        "auto": "Авто",
+        "en": "Англійська",
+        "ru": "Російська",
+        "fr": "Французька",
+        "de": "Німецька",
+        "es": "Іспанська",
+        "it": "Італійська",
+        "pt": "Португальська",
+        "pl": "Польська",
+        "uk": "Українська",
+        "ja": "Японська",
+        "zh": "Китайська",
+        "ko": "Корейська",
+    },
 }
 
 TIME_FORMS: dict[str, dict[str, object]] = {
@@ -662,6 +816,22 @@ TIME_FORMS: dict[str, dict[str, object]] = {
         "earlier": ("更早", "", ""),
         "minute": ("分钟", "分钟", "分钟"),
         "hour": ("小时", "小时", "小时"),
+    },
+    "es": {
+        "template": "hace {n} {unit}",
+        "just_now": ("ahora mismo", "", ""),
+        "ago": ("", "", ""),
+        "earlier": ("antes", "", ""),
+        "minute": ("minuto", "minutos", "minutos"),
+        "hour": ("hora", "horas", "horas"),
+    },
+    "uk": {
+        "template": "{n} {unit} {ago}",
+        "just_now": ("щойно", "", ""),
+        "ago": ("тому", "", ""),
+        "earlier": ("раніше", "", ""),
+        "minute": ("хвилину", "хвилини", "хвилин"),
+        "hour": ("годину", "години", "годин"),
     },
 }
 
