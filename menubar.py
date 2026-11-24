@@ -44,7 +44,14 @@ from translator_core import (
     translate_with_meta,
 )
 from paths import settings_path, updates_dir
-from strings import UI_LANG_NATIVE, lang_name, t, ui_lang_options
+from strings import (
+    UI_LANG_NATIVE,
+    get_ui_lang,
+    lang_name,
+    resolve_ui_lang,
+    t,
+    ui_lang_options,
+)
 from version import APP_VERSION
 
 import updater
@@ -55,6 +62,9 @@ BANNER_H = 34
 DEBOUNCE_INTERVAL = 0.6
 FADE_DURATION = 0.1
 FADE_STEP = 1.0 / 60.0
+# Заметка «Применится после перезапуска» появляется медленнее остальных
+# фейдов: это подсказка, а не смена состояния, и мигать она не должна.
+NOTE_FADE_DURATION = 0.18
 DIVIDER_LINE_THRESHOLD = 5
 UPDATE_CHECK_INTERVAL = 24 * 60 * 60
 APP_NAME = "Translate Bar"
@@ -1304,12 +1314,19 @@ class AppDelegate(NSObject):
         c.addSubview_(self.ui_lang_popup)
         _pointer_cursor(self.ui_lang_popup, self)
 
-        c.addSubview_(
-            _secondary_label(
-                AppKit.NSMakeRect(20, SETTINGS_H - 152, 280, 18),
-                t("ui_lang_note"),
-            )
+        # Заметка скрыта, пока выбор совпадает с действующим языком: строка
+        # «Применится после перезапуска» без смены языка — шум. Показывается
+        # плавно из `_sync_ui_lang_note`, см. `uiLangChanged_`.
+        self.ui_lang_note = _secondary_label(
+            AppKit.NSMakeRect(20, SETTINGS_H - 152, 280, 18),
+            t("ui_lang_note"),
         )
+        self.ui_lang_note.setAlphaValue_(0.0)
+        self.ui_lang_note.setHidden_(True)
+        c.addSubview_(self.ui_lang_note)
+        self._ui_lang_note_timer = None
+        self._ui_lang_note_alpha = 0.0
+        self._ui_lang_note_target = 0.0
 
         c.addSubview_(
             _label(AppKit.NSMakeRect(20, SETTINGS_H - 184, 140, 22), t("history_mode"))
@@ -1451,6 +1468,51 @@ class AppDelegate(NSObject):
         codes = self.ui_lang_codes
         code = codes[idx] if 0 <= idx < len(codes) else "system"
         _write_settings({"ui_lang": code})
+        self._sync_ui_lang_note()
+
+    def _sync_ui_lang_note(self, animate: bool = True) -> None:
+        """Показать/скрыть заметку «Применится после перезапуска».
+
+        Сравниваем выбор с языком, который **сейчас** отрисован в процессе
+        (`get_ui_lang()` кэширован и до перезапуска остаётся прежним). Сверять
+        с `settings.json` нельзя: `uiLangChanged_` пишет туда новое значение
+        раньше проверки, и заметка не появилась бы никогда.
+        """
+        idx = self.ui_lang_popup.indexOfSelectedItem()
+        codes = self.ui_lang_codes
+        selected = codes[idx] if 0 <= idx < len(codes) else "system"
+        wanted = 1.0 if resolve_ui_lang(selected) != get_ui_lang() else 0.0
+        if abs(self._ui_lang_note_target - wanted) < 0.01:
+            return
+        self._ui_lang_note_target = wanted
+        if self._ui_lang_note_timer is not None:
+            self._ui_lang_note_timer.invalidate()
+            self._ui_lang_note_timer = None
+        if wanted > 0.0:
+            self.ui_lang_note.setHidden_(False)
+        if not animate or self._reduce_motion():
+            self.ui_lang_note.setAlphaValue_(wanted)
+            self.ui_lang_note.setHidden_(wanted <= 0.0)
+            self._ui_lang_note_alpha = wanted
+            return
+        # Ручной фейд по таймеру: animator()/Core Animation не анимирует alpha
+        # внутри этого окна (та же причина, что у баннера и разделителя).
+        self._ui_lang_note_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            FADE_STEP, self, "uiLangNoteTick:", None, True
+        )
+
+    def uiLangNoteTick_(self, timer):
+        target = self._ui_lang_note_target
+        step = FADE_STEP / NOTE_FADE_DURATION
+        alpha = self._ui_lang_note_alpha
+        alpha = min(1.0, alpha + step) if target > alpha else max(0.0, alpha - step)
+        self._ui_lang_note_alpha = alpha
+        self.ui_lang_note.setAlphaValue_(alpha)
+        if abs(alpha - target) < 0.01:
+            self.ui_lang_note.setAlphaValue_(target)
+            self.ui_lang_note.setHidden_(target <= 0.0)
+            timer.invalidate()
+            self._ui_lang_note_timer = None
 
     def _restore_ui_lang(self):
         try:
@@ -1521,6 +1583,9 @@ class AppDelegate(NSObject):
         self._restore_ui_lang()
         self._restore_history_mode()
         self._restore_update_auto()
+        # Заметка отражает выбор из прошлого раза: если язык уже меняли, но не
+        # перезапускались, подсказка должна быть видна сразу, без фейда.
+        self._sync_ui_lang_note(animate=False)
         # Кнопка не должна показывать статус прошлой проверки при открытии.
         self._update_settings_status("")
         # Popover lives at NSStatusWindowLevel (25); plain floating (3) would open behind it.

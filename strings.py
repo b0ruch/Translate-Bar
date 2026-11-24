@@ -862,6 +862,13 @@ def _system_lang() -> str:
     return "en"
 
 
+def resolve_ui_lang(code: str) -> str:
+    """Действующий код языка для значения настройки: `system` → системный."""
+    if code == "system":
+        return _system_lang()
+    return _normalize_ui_lang(code) or _system_lang()
+
+
 def get_ui_lang() -> str:
     global _ui_lang
     if _ui_lang is not None:
