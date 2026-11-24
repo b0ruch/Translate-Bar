@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Проверка, что все бинарные зависимости в окружении содержат нужные архитектуры.
+"""Verify that every binary dependency in the environment carries the needed architectures.
 
-Использование:
+Usage:
     .venv-universal/bin/python check_universal2.py
 
-Нужен перед сборкой universal2: PyInstaller требует, чтобы каждый
-расширяемый модуль (*.so) содержал и x86_64, и arm64. Если хоть один
-thin — сборка упадёт с IncompatibleBinaryArchError, и этот скрипт
-покажет, какой именно пакет виноват.
+Required before a universal2 build: PyInstaller demands that every extension
+module (*.so) contains both x86_64 and arm64. If even one is thin, the build
+fails with IncompatibleBinaryArchError, and this script shows which package is
+to blame.
 """
 
 import subprocess
@@ -32,7 +32,7 @@ def main() -> int:
         if "dSYM" not in str(p) and "PyObjCTest" not in str(p)
     ]
     if not binaries:
-        print("Не найдено ни одного .so — окружение пустое?")
+        print("No .so files found — is the environment empty?")
         return 1
 
     bad: list[tuple[Path, set[str]]] = []
@@ -45,14 +45,14 @@ def main() -> int:
             bad.append((path, found))
 
     print()
-    print(f"Всего .so: {len(binaries)}; проблемных: {len(bad)}")
+    print(f"Total .so: {len(binaries)}; problematic: {len(bad)}")
     if bad:
-        print("\nЭти пакеты собраны под одну архитектуру:")
+        print("\nThese packages are built for a single architecture:")
         for path, found in bad:
             pkg = path.relative_to(root).parts[2] if len(path.relative_to(root).parts) > 2 else "?"
             print(f"  - {pkg}: {sorted(found)}")
         return 1
-    print("Все зависимости universal2 — можно собирать.")
+    print("All dependencies are universal2 — ready to build.")
     return 0
 
 

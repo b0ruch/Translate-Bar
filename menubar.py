@@ -22,7 +22,7 @@ try:
     from Foundation import NSObject
 except ImportError as exc:
     raise SystemExit(
-        "Нужен PyObjC (AppKit). Запустите через окружение проекта: "
+        "PyObjC (AppKit) is required. Run it through the project virtualenv: "
         ".venv/bin/python menubar.py"
     ) from exc
 
@@ -62,8 +62,8 @@ BANNER_H = 34
 DEBOUNCE_INTERVAL = 0.6
 FADE_DURATION = 0.1
 FADE_STEP = 1.0 / 60.0
-# Заметка «Применится после перезапуска» появляется медленнее остальных
-# фейдов: это подсказка, а не смена состояния, и мигать она не должна.
+# The "Applies after restart" note fades in slower than the other fades:
+# it is a hint, not a state change, and should not flicker.
 NOTE_FADE_DURATION = 0.18
 DIVIDER_LINE_THRESHOLD = 5
 UPDATE_CHECK_INTERVAL = 24 * 60 * 60
@@ -159,9 +159,8 @@ def save_update_auto(enabled: bool) -> None:
     _write_settings({"update_auto_check": enabled})
 
 
-# Кэш проверки живёт отдельно от settings.json: это служебные данные, а не
-# пользовательские настройки, и settings.json по-прежнему создаётся только
-# при первом действии пользователя.
+# The check cache lives outside settings.json: it is service data, not user
+# settings, and settings.json is still only created on the first user action.
 UPDATE_STATE_FILE = updates_dir() / "state.json"
 
 _UPDATE_STATE_KEYS = (
@@ -305,8 +304,8 @@ class TranslatorViewController(AppKit.NSViewController):
 def _popup(rect, titles, action, target, pulls_down=False):
     popup = AppKit.NSPopUpButton.alloc().initWithFrame_pullsDown_(rect, pulls_down)
     if pulls_down:
-        # В pullsDown первый item — это заголовок кнопки, а не пункт меню:
-        # добавляем пустой, иначе первый язык пропадёт из списка.
+        # With pullsDown, item 0 is the button title, not a menu entry:
+        # add an empty one, otherwise the first language disappears from the list.
         popup.addItemWithTitle_("")
     popup.addItemsWithTitles_(titles)
     try:
@@ -475,8 +474,8 @@ class AppDelegate(NSObject):
         self = objc.super(AppDelegate, self).init()
         self.history = load_history()
         self.history_mode = load_history_mode()
-        # Вариант А: в режиме отдельного экрана поповер всегда
-        # открывается с перевода, сохранённое состояние игнорируется.
+        # Option A: in full-view mode the popover always opens on the
+        # translation; the saved state is ignored.
         self.history_expanded = (
             load_history_expanded() if self.history_mode == "inline" else False
         )
@@ -540,9 +539,9 @@ class AppDelegate(NSObject):
         )
         root.addSubview_(effect)
         self.vc.setView_(root)
-        # Контент поповера живёт в отдельном контейнере с координатами
-        # 0..POPOVER_H, чтобы баннер обновления сдвигал его целиком, а не
-        # требовал править каждый NSMakeRect в _apply_history_state.
+        # The popover content lives in its own container with coordinates
+        # 0..POPOVER_H, so the update banner shifts it as a whole instead of
+        # requiring every NSMakeRect in _apply_history_state to be edited.
         self.content = AppKit.NSView.alloc().initWithFrame_(
             AppKit.NSMakeRect(0, 0, POPOVER_W, POPOVER_H)
         )
@@ -607,8 +606,8 @@ class AppDelegate(NSObject):
         self.placeholder.setFont_(AppKit.NSFont.systemFontOfSize_(14))
         c.addSubview_(self.placeholder)
 
-        # Layer-backed NSView: NSBox высотой 1pt в NSVisualEffectView после
-        # смены alpha перестаёт перерисовываться.
+        # Layer-backed NSView: a 1pt NSBox inside NSVisualEffectView stops
+        # repainting after its alpha changes.
         self.input_divider = AppKit.NSView.alloc().initWithFrame_(
             AppKit.NSMakeRect(12, 320, POPOVER_W - 24, 1)
         )
@@ -739,7 +738,7 @@ class AppDelegate(NSObject):
         if self.popover.isShown():
             self.popover.close()
 
-    # --- Обновления -------------------------------------------------------
+    # --- Updates ---------------------------------------------------------
 
     def _build_update_banner(self, root):
         self.update_banner = AppKit.NSView.alloc().initWithFrame_(
@@ -755,18 +754,18 @@ class AppDelegate(NSObject):
         line.layer().setBackgroundColor_(AppKit.NSColor.separatorColor().CGColor())
         self.update_banner.addSubview_(line)
 
-        # Подпись и кнопка сидят на ОДНОЙ базовой линии (проверено рендером:
-        # верх глифов совпадает до пикселя). Кнопка y=8 при h=22 — не y=6:
-        # внутри NSButton текст центрируется по titleRect (15pt), а не по всей
-        # рамке, поэтому «Установить» при y=6 уезжала на 2pt вниз.
+        # Label and button sit on the SAME baseline (verified by rendering:
+        # the glyph tops match to the pixel). The button is y=8 at h=22, not y=6:
+        # inside NSButton the text is centered on titleRect (15pt), not on the
+        # whole frame, so "Install" at y=6 sat 2pt too low.
         self.update_label = _label(AppKit.NSMakeRect(12, 8, 198, 18), "")
         self.update_label.setFont_(AppKit.NSFont.systemFontOfSize_(12))
         self.update_label.setTextColor_(AppKit.NSColor.secondaryLabelColor())
         self.update_label.setLineBreakMode_(AppKit.NSLineBreakByTruncatingTail)
         self.update_banner.addSubview_(self.update_label)
 
-        # Ширина под самую длинную кнопку («Открыть DMG» ~82pt в RU, «Neu starten»)
-        # с запасом на остальные языки.
+        # Width for the longest button ("Open DMG" ~82pt in RU, "Neu starten"),
+        # with room to spare for the other languages.
         self.update_action_btn = AppKit.NSButton.alloc().initWithFrame_(
             AppKit.NSMakeRect(214, 8, 104, 22)
         )
@@ -803,11 +802,11 @@ class AppDelegate(NSObject):
         self._downloaded_path = ""
 
     def _set_banner_visible(self, visible):
-        # isHidden — метод без аргументов (не property и не isHidden_).
+        # isHidden is a method with no arguments (not a property, not isHidden_).
         expected_h = POPOVER_H + BANNER_H if visible else POPOVER_H
         root_h = self.vc.view().frame().size.height
-        # Проверяем не только флаг, но и фактическую высоту корня: AppKit может
-        # переложить view по своему кэшу, и флаг при этом останется верным.
+        # Check not only the flag but the actual root height: AppKit may
+        # re-layout the view from its own cache while the flag stays correct.
         if (
             bool(self.update_banner.isHidden()) == (not visible)
             and abs(root_h - expected_h) < 0.5
@@ -831,16 +830,16 @@ class AppDelegate(NSObject):
             )
         )
         try:
-            # setContentSize_ нужен и при ЗАКРЫТОМ поповере. Иначе в его кэше
-            # остаётся прежняя высота (468), и следующее открытие уложит корень
-            # обратно в 468, хотя content уже сдвинут на BANNER_H — контент
-            # вылезает за границу, баннер оказывается в середине окна.
+            # setContentSize_ is needed even while the popover is CLOSED. Otherwise
+            # its cache keeps the old height (468) and the next open lays the root
+            # back out at 468, although content is already shifted by BANNER_H —
+            # the content overflows the edge and the banner lands mid-window.
             self.popover.setContentSize_(size)
         except (AttributeError, objc.error):
             pass
 
     def _pending_update(self):
-        """Версия, о которой стоит сообщать: новее текущей и не пропущена."""
+        """The version worth reporting: newer than current and not skipped."""
         info = self.update_info
         if not info or not info.get("version"):
             return None
@@ -887,8 +886,8 @@ class AppDelegate(NSObject):
         self.update_action_btn.setTitle_(action)
         self.update_action_btn.setHidden_(not action)
         self.update_close_btn.setHidden_(stage == "installing")
-        # Без кнопки подпись может занять её место: французское
-        # «Téléchargement depuis GitHub… 42 %» в 198pt не помещается.
+        # Without a button the label may take its place: the French
+        # "Téléchargement depuis GitHub… 42 %" does not fit in 198pt.
         self.update_label.setFrame_(
             AppKit.NSMakeRect(12, 8, 304, 18)
             if not action
@@ -898,7 +897,7 @@ class AppDelegate(NSObject):
         self._sync_update_menu(pending)
 
     def _sync_update_menu(self, pending):
-        """Пункт меню: заголовок либо приглашает, либо сообщает о версии."""
+        """Menu item: the title either invites a check or reports a version."""
         try:
             title = (
                 t("menu_update_available", v=pending["version"])
@@ -942,8 +941,8 @@ class AppDelegate(NSObject):
         )
 
     def _busy(self):
-        """Идёт скачивание/установка — фоновая проверка не имеет права
-        перебивать состояние (иначе она сбросит прогресс в idle)."""
+        """A download/install is running — a background check must not
+        overwrite the state (otherwise it resets progress to idle)."""
         return self.update_stage in ("downloading", "ready", "installing")
 
     def applyUpdateCheck_(self, payload):
@@ -1059,8 +1058,8 @@ class AppDelegate(NSObject):
             self._render_update_banner()
             return
         if not updater.can_self_update(bundle):
-            # Запуск из исходников или бандл вне /Applications: отдаём образ
-            # Finder'у, дальше пользователь ставит сам.
+            # Launched from source, or the bundle is outside /Applications: hand
+            # the image to Finder and let the user install it manually.
             subprocess.run(["open", str(dmg)], check=False)
             return
         self.update_stage = "installing"
@@ -1070,7 +1069,8 @@ class AppDelegate(NSObject):
         ).start()
 
     def _install_worker(self, dmg, bundle, pending):
-        # hdiutil attach занимает пару секунд — в потоке, чтобы не морозить UI.
+        # hdiutil attach takes a couple of seconds — run it off-thread so the UI
+        # does not freeze.
         validated = updater.validate_dmg(dmg, pending["version"])
         if not validated.get("ok"):
             self.performSelectorOnMainThread_withObject_waitUntilDone_(
@@ -1087,7 +1087,7 @@ class AppDelegate(NSObject):
                 "applyInstallFailure:", {"error": "spawn"}, False
             )
             return
-        # Helper ждёт нашего выхода — завершаем приложение.
+        # The helper waits for us to exit — quit the app.
         self.performSelectorOnMainThread_withObject_waitUntilDone_(
             "quitForUpdate:", None, False
         )
@@ -1154,7 +1154,7 @@ class AppDelegate(NSObject):
         window = self.vc.view().window()
         self._stop_fade()
         if self.history_mode == "screen" and self.history_expanded:
-            # Отдельный экран истории: перевод скрыт, список на весь поповер.
+            # History full view: translation hidden, list fills the popover.
             self.input_scroll.setHidden_(True)
             self.placeholder.setHidden_(True)
             self.clear_text_btn.setHidden_(True)
@@ -1185,7 +1185,7 @@ class AppDelegate(NSObject):
             self.clear_btn.setHidden_(False)
             self.table_scroll.setHidden_(False)
         else:
-            # Экран перевода: встроенная история снизу (или свёрнута).
+            # Translation screen: inline history at the bottom (or collapsed).
             self.input_scroll.setHidden_(False)
             self.clear_text_btn.setHidden_(False)
             self.caption.setHidden_(False)
@@ -1223,15 +1223,15 @@ class AppDelegate(NSObject):
             not self.history_expanded or bool(self.history)
         )
         if not (self.history_mode == "screen" and self.history_expanded):
-            # На экране перевода линия зависит от числа строк ввода.
+            # On the translation screen the divider depends on the input line count.
             self._update_input_divider(animate=False)
         elif self._divider_timer is not None:
             self._divider_timer.invalidate()
             self._divider_timer = None
         self._set_history_toggle_icon()
         if window is not None:
-            # Поле ввода прячется вместе с фокусом — уводим его явно,
-            # иначе кольцо фокуса падает на кнопки языков.
+            # The input field hides together with the focus — move it away
+            # explicitly, otherwise the focus ring lands on the language buttons.
             try:
                 if self.history_mode == "screen" and self.history_expanded:
                     window.makeFirstResponder_(self.hist_table)
@@ -1314,9 +1314,9 @@ class AppDelegate(NSObject):
         c.addSubview_(self.ui_lang_popup)
         _pointer_cursor(self.ui_lang_popup, self)
 
-        # Заметка скрыта, пока выбор совпадает с действующим языком: строка
-        # «Применится после перезапуска» без смены языка — шум. Показывается
-        # плавно из `_sync_ui_lang_note`, см. `uiLangChanged_`.
+        # The note stays hidden while the selection matches the active language:
+        # "Applies after restart" without a language change is just noise. It is
+        # faded in from `_sync_ui_lang_note`, see `uiLangChanged_`.
         self.ui_lang_note = _secondary_label(
             AppKit.NSMakeRect(20, SETTINGS_H - 152, 280, 18),
             t("ui_lang_note"),
@@ -1350,10 +1350,10 @@ class AppDelegate(NSObject):
         c.addSubview_(self.update_auto_box)
         _pointer_cursor(self.update_auto_box, self)
 
-        # Статус проверки показывается в заголовке самой кнопки: отдельная
-        # строка под ней дублировала информацию и нагружала интерфейс.
-        # Кнопка на всю ширину блока: «Проверить обновления…» во французском
-        # занимает ~165pt, в узкое поле не влезала.
+        # The check status is shown in the button title itself: a separate line
+        # below it duplicated the information and cluttered the UI.
+        # The button is full width: "Check for Updates…" in French takes ~165pt
+        # and did not fit the narrow field.
         self.update_check_btn = AppKit.NSButton.alloc().initWithFrame_(
             AppKit.NSMakeRect(18, 56, 284, 24)
         )
@@ -1362,9 +1362,9 @@ class AppDelegate(NSObject):
         self.update_check_btn.setBezelStyle_(AppKit.NSRoundedBezelStyle)
         self.update_check_btn.setFont_(AppKit.NSFont.systemFontOfSize_(12))
         self.update_check_btn.setTarget_(self)
-        # Имя селектора должно совпадать с методом: PyObjC ищет
-        # startUpdateCheck_, а не start_update_check. Из-за расхождения
-        # клик по кнопке молча игнорировался.
+        # The selector name must match the method exactly: PyObjC looks for
+        # startUpdateCheck_, not start_update_check. Because they diverged, the
+        # button click was silently ignored.
         self.update_check_btn.setAction_("startUpdateCheck:")
         c.addSubview_(self.update_check_btn)
         _pointer_cursor(self.update_check_btn, self)
@@ -1441,9 +1441,9 @@ class AppDelegate(NSObject):
         self.requestTranslation()
 
     def popoverDidShow_(self, notification):
-        # AppKit укладывает поповер по своему кэшу contentSize. Если баннер
-        # появился, пока поповер был закрыт, кэш мог разойтись с состоянием —
-        # синхронизируем размер с фактическим положением дел.
+        # AppKit lays the popover out from its own contentSize cache. If the
+        # banner appeared while the popover was closed, the cache may have drifted
+        # from the real state — sync the size with the actual situation.
         self._set_banner_visible(not self._banner_should_hide())
         window = self.vc.view().window()
         if window is not None:
@@ -1471,12 +1471,12 @@ class AppDelegate(NSObject):
         self._sync_ui_lang_note()
 
     def _sync_ui_lang_note(self, animate: bool = True) -> None:
-        """Показать/скрыть заметку «Применится после перезапуска».
+        """Show/hide the "Applies after restart" note.
 
-        Сравниваем выбор с языком, который **сейчас** отрисован в процессе
-        (`get_ui_lang()` кэширован и до перезапуска остаётся прежним). Сверять
-        с `settings.json` нельзя: `uiLangChanged_` пишет туда новое значение
-        раньше проверки, и заметка не появилась бы никогда.
+        The selection is compared against the language the process is rendering
+        **right now** (`get_ui_lang()` is cached and stays at the old value until
+        a restart). Comparing against `settings.json` is wrong: `uiLangChanged_`
+        writes the new value before the check runs, so the note would never appear.
         """
         idx = self.ui_lang_popup.indexOfSelectedItem()
         codes = self.ui_lang_codes
@@ -1495,8 +1495,8 @@ class AppDelegate(NSObject):
             self.ui_lang_note.setHidden_(wanted <= 0.0)
             self._ui_lang_note_alpha = wanted
             return
-        # Ручной фейд по таймеру: animator()/Core Animation не анимирует alpha
-        # внутри этого окна (та же причина, что у баннера и разделителя).
+        # Manual timer-based fade: animator()/Core Animation does not animate alpha
+        # inside this window (same reason as the banner and the divider).
         self._ui_lang_note_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             FADE_STEP, self, "uiLangNoteTick:", None, True
         )
@@ -1531,7 +1531,7 @@ class AppDelegate(NSObject):
         self.history_mode = mode
         save_history_mode(mode)
         if mode == "screen":
-            # Вариант А: отдельный экран всегда начинается с перевода.
+            # Option A: full view always starts on the translation.
             self.history_expanded = False
         else:
             self.history_expanded = load_history_expanded()
@@ -1544,7 +1544,7 @@ class AppDelegate(NSObject):
         self.history_mode_popup.selectItemAtIndex_(HISTORY_MODES.index(mode))
 
     def _update_settings_status(self, text):
-        """Пишет состояние проверки в заголовок кнопки (отдельной строки нет)."""
+        """Writes the check status into the button title (there is no separate line)."""
         try:
             self.update_check_btn.setTitle_(text or t("menu_check_updates"))
             self.update_check_btn.setToolTip_(text or "")
@@ -1561,7 +1561,7 @@ class AppDelegate(NSObject):
         )
 
     def _load_cached_update(self):
-        """Поднимает результат прошлой проверки, чтобы баннер был сразу."""
+        """Restore the last check result so the banner shows up immediately."""
         state = load_update_state()
         if not state["version"] or not state["url"]:
             return
@@ -1583,10 +1583,10 @@ class AppDelegate(NSObject):
         self._restore_ui_lang()
         self._restore_history_mode()
         self._restore_update_auto()
-        # Заметка отражает выбор из прошлого раза: если язык уже меняли, но не
-        # перезапускались, подсказка должна быть видна сразу, без фейда.
+        # The note reflects the choice from last time: if the language was already
+        # changed but not restarted, the hint must be visible right away, no fade.
         self._sync_ui_lang_note(animate=False)
-        # Кнопка не должна показывать статус прошлой проверки при открытии.
+        # The button must not show the previous check status when opened.
         self._update_settings_status("")
         # Popover lives at NSStatusWindowLevel (25); plain floating (3) would open behind it.
         level = AppKit.NSFloatingWindowLevel
@@ -1619,7 +1619,7 @@ class AppDelegate(NSObject):
         self.caption.setStringValue_(text)
 
     def _target_code(self):
-        # +1: item 0 в pullsDown — заголовок кнопки, языки начинаются с индекса 1.
+        # +1: with pullsDown, item 0 is the button title, languages start at index 1.
         idx = self.target_popup.indexOfSelectedItem() - 1
         if 0 <= idx < len(TARGET_LANGUAGES):
             return TARGET_LANGUAGES[idx][1]
@@ -1649,7 +1649,7 @@ class AppDelegate(NSObject):
         self._sync_language_titles()
 
     def _sync_language_titles(self):
-        # pullsDown-кнопки не обновляют заголовок сами — выставляем вручную.
+        # pullsDown buttons do not update their title themselves — set it manually.
         self.source_popup.setTitle_(lang_name(self._source_code()))
         self.target_popup.setTitle_(lang_name(self._target_code()))
 
@@ -1694,15 +1694,15 @@ class AppDelegate(NSObject):
         new = str(self.input_view.string())
         self.placeholder.setHidden_(bool(new))
         self._update_clear_button()
-        # Синхронный пересчёт: _line_count берёт максимум из layout и оценки
-        # по ширине, поэтому устаревший layout не может занизить число строк.
+        # Synchronous recount: _line_count takes the max of the layout count and
+        # the width estimate, so a stale layout cannot undercount lines.
         self._update_input_divider(animate=True)
         if self._debounce_timer is not None:
             self._debounce_timer.invalidate()
             self._debounce_timer = None
         if self._is_pure_deletion(self._prev_input, new):
-            # Удаление не пересчитывает перевод: вывод замирает
-            # на последнем результате, пока не начнут набирать заново.
+            # Deleting does not retranslate: the output freezes on the last
+            # result until typing resumes.
             self._prev_input = new
             return
         self._prev_input = new
@@ -1721,7 +1721,7 @@ class AppDelegate(NSObject):
         if reduce:
             self.output_scroll.setAlphaValue_(1.0)
             return
-        # Ручной фейд: animator()/CoreAnimation в этой иерархии не анимирует alpha.
+        # Manual fade: animator()/CoreAnimation does not animate alpha in this hierarchy.
         self._fade_step = 0
         self.output_scroll.setAlphaValue_(0.0)
         self._fade_timer = AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
@@ -1737,7 +1737,7 @@ class AppDelegate(NSObject):
             self._fade_timer = None
 
     def _line_count(self, view) -> int:
-        """Число отображаемых строк: максимум из layout-оценки и оценки по ширине."""
+        """Number of visible lines: the max of the layout count and the width estimate."""
         text = str(view.string())
         if not text:
             return 0
@@ -1766,7 +1766,7 @@ class AppDelegate(NSObject):
                     index = rng.location + (rng.length or 1)
         except (AttributeError, objc.error):
             layout_count = 0
-        # Оценка по ширине: не зависит от актуальности layout.
+        # Width estimate: independent of how fresh the layout is.
         width = 0.0
         try:
             width = float(view.textContainer().containerSize().width)
@@ -1785,12 +1785,13 @@ class AppDelegate(NSObject):
         per_line = max(1, int(width // char_w))
         est = 0
         paragraphs = text.split("\n")
-        # Завершающий перенос не создаёт новую отображаемую строку.
+        # A trailing newline does not create a new visible line.
         if len(paragraphs) > 1 and paragraphs[-1] == "":
             paragraphs = paragraphs[:-1]
         for paragraph in paragraphs:
             est += max(1, -(-len(paragraph) // per_line))
-        # Приоритет layout: он точен. Оценка — только если layout недоступен.
+        # Prefer the layout count: it is exact. The estimate is only for when
+        # layout is unavailable.
         return layout_count if layout_count > 0 else est
 
     def _set_divider_alpha(self, alpha: float) -> None:
@@ -1812,8 +1813,8 @@ class AppDelegate(NSObject):
         self._divider_alpha = wanted
         if wanted > 0.0:
             self.input_divider.setHidden_(False)
-        # Состояние применяется сразу, плавность — только визуальный эффект
-        # Core Animation (таймеры и animator() здесь ненадёжны).
+        # State is applied immediately; the smoothness is only a visual effect of
+        # Core Animation (timers and animator() are unreliable here).
         if animate and not self._reduce_motion() and previous != wanted:
             self._animate_divider_opacity(previous, wanted)
         else:
@@ -1837,7 +1838,7 @@ class AppDelegate(NSObject):
         layer.addAnimation_forKey_(anim, "dividerFade")
         self.input_divider.setAlphaValue_(to_alpha)
         if to_alpha <= 0.0:
-            # Скрываем после завершения анимации, не блокируя финальное состояние.
+            # Hide after the animation finishes, without blocking the final state.
             AppKit.NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                 FADE_DURATION + 0.02, self, "hideDividerAfterFade:", None, False
             )

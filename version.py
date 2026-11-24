@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Версия Translate Bar — единственный источник правды.
+"""Translate Bar version — the single source of truth.
 
-Импортируется из menubar.py (строка версии в настройках) и из
+Imported by menubar.py (the version line in Settings) and by
 TranslateBar.spec (CFBundleShortVersionString / CFBundleVersion).
 """
 

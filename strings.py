@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # pyright: reportAttributeAccessIssue=false
-"""Строки интерфейса Translate Bar (RU/EN/DE/FR/JA/ZH-Hans/ES/UK)."""
+"""Translate Bar interface strings (RU/EN/DE/FR/JA/ZH-Hans/ES/UK)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ UI_LANG_NATIVE = {
 
 
 def ui_lang_options() -> list[str]:
-    """Коды языков для селектора: system первая, остальные по алфавиту."""
+    """Language codes for the selector: `system` first, the rest alphabetically."""
     rest = sorted(
         (c for c in SUPPORTED_UI_LANGS), key=lambda c: UI_LANG_NATIVE[c].lower()
     )
@@ -863,7 +863,7 @@ def _system_lang() -> str:
 
 
 def resolve_ui_lang(code: str) -> str:
-    """Действующий код языка для значения настройки: `system` → системный."""
+    """Effective language code for a settings value: `system` -> the system language."""
     if code == "system":
         return _system_lang()
     return _normalize_ui_lang(code) or _system_lang()

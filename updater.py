@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
-"""Проверка и установка обновлений Translate Bar через GitHub Releases.
+"""Translate Bar update check and install via GitHub Releases.
 
-Модуль без AppKit: всё, что касается UI, делает menubar.py. Сетевые ошибки,
-битые образы и невозможность самозамены возвращаются как статусы, а не
-исключения — вызывающая сторона просто показывает текст.
+AppKit-free: everything UI-related lives in menubar.py. Network failures,
+corrupt images and an impossible self-replace are returned as statuses, not
+exceptions — the caller simply renders text.
 
-Проверка идёт через api.github.com (60 неавторизованных запросов в час на IP,
-нам нужен один в сутки) — токен не требуется.
+The check goes through api.github.com (60 unauthenticated requests per hour per
+IP, we need one a day) — no token required.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ _VERSION_RE = re.compile(r"(\d+(?:\.\d+)*)")
 
 
 def parse_version(value: str) -> tuple[int, ...]:
-    """'v1.2.0' -> (1, 2, 0). Пре-релизный суффикс отбрасывается."""
+    """'v1.2.0' -> (1, 2, 0). A pre-release suffix is dropped."""
     match = _VERSION_RE.search(str(value).strip().lstrip("vV"))
     if not match:
         return ()
@@ -49,7 +49,7 @@ def _pad(parts: tuple[int, ...], size: int) -> tuple[int, ...]:
 
 
 def is_newer(remote: str, current: str) -> bool:
-    """Сравнение кортежами: (1, 2) == (1, 2, 0), (1, 10) > (1, 9)."""
+    """Tuple comparison: (1, 2) == (1, 2, 0), (1, 10) > (1, 9)."""
     a, b = parse_version(remote), parse_version(current)
     if not a:
         return False
@@ -72,7 +72,7 @@ def _pick_asset(assets: list) -> dict | None:
 
 
 def check_for_update(current: str, timeout: int = TIMEOUT) -> dict:
-    """Результат: status = "update" | "current" | "error"."""
+    """Result: status = "update" | "current" | "error"."""
     try:
         resp = requests.get(
             LATEST_URL,
@@ -114,7 +114,7 @@ def check_for_update(current: str, timeout: int = TIMEOUT) -> dict:
 
 
 class DownloadCancelled(Exception):
-    """Пользователь отменил скачивание."""
+    """The user cancelled the download."""
 
 
 def _sha256_of(path: Path) -> str:
@@ -133,17 +133,17 @@ def download_update(
     progress=None,
     cancelled=None,
 ) -> Path:
-    """Скачивает образ в dest.part, проверяет sha256 и переименовывает.
+    """Download the image to dest.part, verify sha256 and rename it.
 
-    progress(downloaded, total) вызывается по ходу. cancelled() -> bool
-    позволяет прервать загрузку; недокачанный .part остаётся на диске и
-    переиспользуется при повторной попытке.
+    progress(downloaded, total) is called along the way. cancelled() -> bool
+    lets the caller abort; an incomplete .part stays on disk and is reused on
+    the next attempt.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_suffix(dest.suffix + ".part")
 
-    # Докачка: GitHub отдаёт Accept-Ranges, но проще и надёжнее начать заново,
-    # если размер не совпадает — образы небольшие (~26 МБ).
+    # Resume: GitHub sends Accept-Ranges, but starting over is simpler and safer
+    # when the size does not match — the images are small (~26 MB).
     if part.exists() and total and part.stat().st_size == total:
         if not expected_sha256 or _sha256_of(part) == expected_sha256:
             os.replace(part, dest)
@@ -182,11 +182,11 @@ def download_update(
 
 
 def validate_dmg(dmg_path: Path, expected_version: str = "") -> dict:
-    """Монтирует образ и проверяет, что внутри наш бандл нужной версии.
+    """Mount the image and check that it contains our bundle at the right version.
 
-    Возвращает {"ok": True, "mount": str, "app": str, "version": str} или
-    {"ok": False, "error": str}. Образ остаётся смонтированным — вызывающая
-    сторона обязана сделать detach (updater.unmount).
+    Returns {"ok": True, "mount": str, "app": str, "version": str} or
+    {"ok": False, "error": str}. The image stays mounted — the caller is
+    responsible for detaching it (updater.unmount).
     """
     mount = Path(tempfile.mkdtemp(prefix="translatebar-dmg-"))
     try:
@@ -249,7 +249,7 @@ def unmount(mount) -> None:
 
 
 def app_bundle_path() -> Path | None:
-    """Путь до .app, если приложение запущено из собранного бандла."""
+    """Path to the .app if the app was launched from a built bundle."""
     if not getattr(sys, "frozen", False):
         return None
     exe = Path(sys.executable).resolve()
@@ -260,7 +260,7 @@ def app_bundle_path() -> Path | None:
 
 
 def can_self_update(bundle: Path | None = None) -> bool:
-    """Можно ли заменить бандл на месте: собранное приложение и есть права."""
+    """Whether the bundle can be replaced in place: a built app and we have rights."""
     bundle = bundle or app_bundle_path()
     if bundle is None:
         return False
@@ -278,18 +278,18 @@ def can_self_update(bundle: Path | None = None) -> bool:
 
 
 def install_update(mount: str, source_app: str, bundle: Path, dmg: Path) -> None:
-    """Запускает helper, который заменит бандл после выхода приложения.
+    """Spawn the helper that replaces the bundle after this app exits.
 
-    Возвращает управление сразу: вызывающая сторона должна завершить процесс,
-    иначе helper будет ждать вечно.
+    Returns immediately: the caller must terminate the process, otherwise the
+    helper waits forever.
     """
     script = Path(tempfile.mkdtemp(prefix="translatebar-update-")) / "install.sh"
     script.write_text(_HELPER.format(**{"src": _q(source_app)}), encoding="utf-8")
     log = script.with_suffix(".log")
     with log.open("wb") as log_fh:
         subprocess.Popen(
-            # Пути передаются аргументами как есть: кавычки нужны только
-            # внутри текста скрипта ({src}), а не в argv.
+            # Paths are passed as argv entries verbatim: quoting is only needed
+            # inside the script text ({src}), not in argv.
             ["/bin/sh", str(script), str(os.getpid()), str(mount), str(dmg), str(bundle)],
             stdin=subprocess.DEVNULL,
             stdout=log_fh,
@@ -319,9 +319,9 @@ restore() {{
   detach
 }}
 
-# Ждём выхода приложения: замена живого бандла ненадёжна.
-# Ограничение по времени: зомби-процесс тоже отвечает на kill -0, а висеть
-# вечно helper не должен.
+# Wait for the app to exit: replacing a live bundle is unreliable.
+# Time limit: a zombie process also answers kill -0, and the helper must not
+# hang forever.
 i=0
 while kill -0 "$PID" 2>/dev/null; do
   i=$((i + 1))
@@ -332,7 +332,7 @@ done
 trap restore EXIT
 
 rm -rf "$NEW" "$OLD" 2>/dev/null || true
-# ditto в копию рядом с целью: mv остаётся в пределах одного тома.
+# ditto into a copy next to the target: mv then stays within one volume.
 ditto {src} "$NEW" || exit 1
 xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true
 

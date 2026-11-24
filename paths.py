@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Пути данных Translate Bar (Application Support + миграция из папки проекта)."""
+"""Translate Bar data paths (Application Support + migration from the project folder)."""
 
 from pathlib import Path
 
@@ -46,10 +46,10 @@ def settings_path() -> Path:
 
 
 def updates_dir() -> Path:
-    """Скачанные образы обновлений.
+    """Downloaded update images.
 
-    Не ~/Downloads: папка под TCC, приложение получило бы системный запрос
-    доступа на первом скачивании.
+    Not ~/Downloads: that folder is TCC-protected, so the app would trigger a
+    system permission prompt on the first download.
     """
     target = data_dir() / "updates"
     target.mkdir(parents=True, exist_ok=True)

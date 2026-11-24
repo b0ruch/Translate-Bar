@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
 # -*- mode: python ; coding: utf-8 -*-
-"""Сборка Translate Bar.
+"""Build Translate Bar.
 
-arm64 (по умолчанию):
+arm64 (default):
     ./.venv/bin/python -m pip install -r requirements-build.txt
     ./.venv/bin/pyinstaller -y TranslateBar.spec
 
-universal2 (нужен universal2-Python от python.org, см. README):
+universal2 (needs a universal2 Python from python.org, see README):
     TARGET_ARCH=universal2 ./.venv-universal/bin/pyinstaller -y TranslateBar.spec
 """
 
@@ -15,7 +15,7 @@ import sys
 
 from PyInstaller.utils.hooks import collect_data_files
 
-# Версия живёт в version.py, чтобы не дублироваться с menubar.py.
+# The version lives in version.py so it is not duplicated with menubar.py.
 if SPECPATH not in sys.path:
     sys.path.insert(0, SPECPATH)
 from version import APP_VERSION  # noqa: E402
